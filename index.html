@@ -61,7 +61,7 @@
         <!-- 主体布局 -->
         <main class="flex-1 p-4 md:p-6 grid grid-cols-1 lg:grid-cols-4 gap-6">
             
-            <!-- 左侧受试者特征筛选栏 -->
+            <!-- 左侧筛选栏 -->
             <section class="lg:col-span-1 bg-slate-100/80 p-4 rounded-2xl border border-slate-200/60 space-y-4 h-fit sticky top-24">
                 <div class="flex justify-between items-center border-b pb-3 border-slate-300/60">
                     <h3 class="font-bold text-slate-700 flex items-center gap-1.5 text-xs tracking-wide">
@@ -374,7 +374,8 @@
                 <div class="p-4 overflow-y-auto space-y-3 text-xs grid grid-cols-1 md:grid-cols-2 gap-3 custom-scrollbar">
                     <div class="md:col-span-2">
                         <label class="block font-bold text-slate-600 mb-1">课题研究官方全称 *</label>
-                        <input type="text" v-model="manageForm.name" class="w-full p-2 border border-slate-300 rounded-lg outline-none">
+                        <!-- 🛡️ 深度优化：绑定双向数据，确保手动输入的文本被 Vue 实时感知 -->
+                        <input type="text" v-model="manageForm.name" class="w-full p-2 border border-slate-300 rounded-lg outline-none text-slate-900 font-medium">
                     </div>
                     <div>
                         <label class="block font-bold text-slate-600 mb-1">项目编号</label>
@@ -418,7 +419,7 @@
                 </div>
                 <div class="p-3 bg-slate-50 border-t flex justify-end gap-2 rounded-b-2xl">
                     <button @click="showManageModal = false" class="bg-slate-300 px-4 py-2 rounded-lg text-xs">取消</button>
-                    <button @click="saveTrial" class="bg-blue-600 text-white font-bold px-5 py-2 rounded-lg text-xs">发布研究</button>
+                    <button @click="saveTrial" class="bg-blue-600 text-white font-bold px-5 py-2 rounded-lg text-xs hover:bg-blue-700 transition">确认发布至云端</button>
                 </div>
             </div>
         </div>
@@ -457,14 +458,13 @@
         const SUPABASE_URL = "https://tqdmcdcvknqygwkpemll.supabase.co";
         const SUPABASE_KEY = "sb_publishable_td6jG96VyiWhzilHVzjGng_9fQIc6vs";
         
-        // 🔒 容错核心封装优化：确保无论数据库驱动有何异常，前端 Vue 核心主应用也绝不挂起、不卡死
         let globalSupabase = null;
         try {
             if (typeof supabase !== 'undefined' && supabase.createClient) {
                 globalSupabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
             }
         } catch (e) {
-            console.error("Supabase 安全网关异常隔离拦截:", e);
+            console.error("Supabase 网关异常拦截:", e);
         }
 
         createApp({
@@ -505,7 +505,6 @@
                     regimen: '', tagsString: '', description: '', inclusion: '', exclusion: ''
                 });
 
-                // 【云端物理数据抓取引擎】
                 const fetchTrialsFromCloud = async () => {
                     if (!globalSupabase) {
                         isLoading.value = false;
@@ -760,39 +759,62 @@
                 };
 
                 const saveTrial = async () => {
-                    if (!manageForm.value.name || !globalSupabase) return alert("课题名称不能为空");
-                    const parsedTags = manageForm.value.tagsString.split(/[\s|，,]+/).filter(Boolean).join('|');
+                    if (!manageForm.value.name || !manageForm.value.name.trim()) {
+                        return alert("课题研究官方全称不能为空，请检查输入！");
+                    }
+                    if (!globalSupabase) {
+                        return alert("云数据库未就绪，请刷新重试！");
+                    }
                     
+                    const parsedTags = manageForm.value.tagsString.split(/[\s|，,]+/).filter(Boolean).join('|');
                     isLoading.value = true;
+                    
                     const payload = {
-                        name: manageForm.value.name,
-                        protocol: manageForm.value.protocol,
-                        company: manageForm.value.company,
+                        name: manageForm.value.name.trim(),
+                        protocol: manageForm.value.protocol ? manageForm.value.protocol.trim() : '',
+                        company: manageForm.value.company ? manageForm.value.company.trim() : '',
                         status: manageForm.value.status,
                         start_date: manageForm.value.startDate,
-                        regimen: manageForm.value.regimen,
+                        regimen: manageForm.value.regimen ? manageForm.value.regimen.trim() : '',
                         tags: parsedTags,
-                        description: manageForm.value.description,
-                        inclusion: manageForm.value.inclusion,
-                        exclusion: manageForm.value.exclusion
+                        description: manageForm.value.description ? manageForm.value.description.trim() : '',
+                        inclusion: manageForm.value.inclusion ? manageForm.value.inclusion.trim() : '未录入具体入选标准。',
+                        exclusion: manageForm.value.exclusion ? manageForm.value.exclusion.trim() : '未录入具体排除标准。'
                     };
 
-                    if (isEditMode.value) {
-                        await globalSupabase.from('trials').update(payload).eq('id', currentEditId.value);
-                    } else {
-                        const newId = Math.floor(Math.random() * 100000000);
-                        await globalSupabase.from('trials').insert([{ id: newId, ...payload }]);
+                    try {
+                        if (isEditMode.value) {
+                            const { error } = await globalSupabase.from('trials').update(payload).eq('id', currentEditId.value);
+                            if (error) throw error;
+                        } else {
+                            const newId = Math.floor(Math.random() * 100000000);
+                            const { error } = await globalSupabase.from('trials').insert([{ id: newId, ...payload }]);
+                            if (error) throw error;
+                        }
+                        showManageModal.value = false;
+                        await fetchTrialsFromCloud();
+                        alert("数据已成功上云并永久发布！");
+                    } catch (err) {
+                        console.error("数据提交云端异常:", err);
+                        alert("同步云端失败，请确保你的 Supabase 云端创建了名为 trials 的数据表并关闭了 RLS 权限锁。");
+                    } finally {
+                        isLoading.value = false;
                     }
-                    showManageModal.value = false;
-                    await fetchTrialsFromCloud();
                 };
 
                 const deleteTrial = async (id) => {
                     if (confirm("确定要永久从云端移除此项目吗？") && globalSupabase) {
                         isLoading.value = true;
-                        await globalSupabase.from('trials').delete().eq('id', id);
-                        selectedTrialIds.value = selectedTrialIds.value.filter(item => item !== id);
-                        await fetchTrialsFromCloud();
+                        try {
+                            const { error } = await globalSupabase.from('trials').delete().eq('id', id);
+                            if (error) throw error;
+                            selectedTrialIds.value = selectedTrialIds.value.filter(item => item !== id);
+                            await fetchTrialsFromCloud();
+                        } catch (err) {
+                            console.error(err);
+                        } finally {
+                            isLoading.value = false;
+                        }
                     }
                 };
 
