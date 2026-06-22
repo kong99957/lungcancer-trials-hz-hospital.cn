@@ -152,9 +152,14 @@
                     </div>
 
                     <div class="flex items-center space-x-4 pt-2 border-t border-slate-100">
-                        <span class="text-[10px] font-bold text-slate-400 tracking-wider uppercase flex items-center gap-1"><i class="fa-solid fa-cloud-arrow-up text-blue-500"></i> 数据防护监控:</span>
-                        <div class="bg-emerald-50 border border-emerald-200 text-emerald-800 px-2.5 py-1 rounded-lg text-[11px]">
-                            有效在研项目总数: <strong class="font-bold text-emerald-700 font-mono text-xs">{{ filteredTrials.length }}</strong> 项
+                        <span class="text-[10px] font-bold text-slate-400 tracking-wider uppercase flex items-center gap-1"><i class="fa-solid fa-chart-pie text-blue-500"></i> 项目状态防护监控:</span>
+                        <div class="flex items-center gap-2">
+                            <span class="bg-emerald-50 border border-emerald-200 text-emerald-800 px-2.5 py-1 rounded-lg text-[11px]">
+                                招募中: <strong class="font-bold text-emerald-700 font-mono text-xs">{{ statusStatistics.recruitingCount }}</strong> 项
+                            </span>
+                            <span class="bg-amber-50 border border-amber-200 text-amber-800 px-2.5 py-1 rounded-lg text-[11px]">
+                                已满额: <strong class="font-bold text-amber-700 font-mono text-xs">{{ statusStatistics.fullCount }}</strong> 项
+                            </span>
                         </div>
                     </div>
                 </div>
@@ -469,11 +474,10 @@
                 const loginForm = ref({ username: '', password: '' });
                 const loginError = ref('');
 
-                // 核心重构：多数据源无缝切分
+                // 全量项目从云端实时计算
                 const cloudTrials = ref([]);  
-                const localTrials = ref([]);  
                 const mockTrials = computed(() => {
-                    return [...cloudTrials.value, ...localTrials.value];
+                    return cloudTrials.value;
                 });
 
                 const currentPage = ref(1);
@@ -488,19 +492,8 @@
                     regimen: '', tagsString: '', description: '', inclusion: '', exclusion: ''
                 });
 
-                const loadLocalTrialsData = () => {
-                    try {
-                        const localData = localStorage.getItem('hz_local_trials');
-                        if (localData) {
-                            localTrials.value = JSON.parse(localData);
-                        }
-                    } catch (e) {
-                        console.error(e);
-                    }
-                };
-
+                // 从 Supabase 云端拉取全量最新数据，所有人访问时都能看到
                 const fetchTrialsFromCloud = async () => {
-                    loadLocalTrialsData();
                     if (!globalSupabase) {
                         isLoading.value = false;
                         return;
@@ -554,8 +547,9 @@
                 const handleFileDrop = (e) => { isDragOver.value = false; prepareFile(e.dataTransfer.files[0]); };
                 const handleFileSelect = (e) => { prepareFile(e.target.files[0]); };
 
+                // 核心重构：将 Excel 批量解析出的数据直接插入 Supabase 云数据库
                 const parseUploadedFile = () => {
-                    if (!uploadedFileRaw.value) return;
+                    if (!uploadedFileRaw.value || !globalSupabase) return;
                     const file = uploadedFileRaw.value;
                     const reader = new FileReader();
 
@@ -575,37 +569,41 @@
                                 let cleanTags = rawTags.map(t => t.trim()).filter(Boolean);
 
                                 uploadBatch.push({
-                                    id: "LOCAL-" + Math.floor(Math.random() * 1000000),
                                     name: String(row[0]).trim(),
                                     protocol: row[1] ? String(row[1]).trim() : '',   
                                     company: row[2] ? String(row[2]).trim() : '',
                                     status: row[3] && String(row[3]).includes("满") ? "已满额" : "招募中",
-                                    startDate: row[4] ? String(row[4]).trim() : new Date().toISOString().split('T')[0],   
+                                    start_date: row[4] ? String(row[4]).trim() : new Date().toISOString().split('T')[0],   
                                     regimen: row[5] ? String(row[5]).trim() : '',    
-                                    tags: cleanTags,                                  
+                                    tags: cleanTags.join('|'),                                         
                                     description: "",
                                     inclusion: row[7] ? String(row[7]).trim() : "未添加具体入选适应指征。", 
                                     exclusion: row[8] ? String(row[8]).trim() : "未添加具体排除受试禁忌。"
                                 });
                             });
 
-                            // 默认进入浏览器安全沙盒模型，完全免除写保护阻断
-                            localTrials.value = [...localTrials.value, ...uploadBatch];
-                            localStorage.setItem('hz_local_trials', JSON.stringify(localTrials.value));
-                            alert("💡 表格导入成功！项目数据已安全载入本地工作台，可立即完成匹配、查阅与一键导出。");
+                            isLoading.value = true;
+                            const { error } = await globalSupabase.from('trials').insert(uploadBatch);
+                            if (error) throw error;
+
+                            alert("💡 表格导入成功！项目数据已成功同步至全网云端，所有人均可实时查阅。");
                             showImportModal.value = false;
                             clearUploadStates();
                             currentPage.value = 1;
+                            await fetchTrialsFromCloud();
                         } catch (err) {
                             console.error(err);
-                            alert("大表导入失败，请检查数据格式对齐。");
+                            alert("云端同步失败，请检查账号权限或数据格式。");
+                        } finally {
+                            isLoading.value = false;
                         }
                     };
                     reader.readAsArrayBuffer(file);
                 };
 
+                // 核心重构：将文本复制产生的数据直接写入云端
                 const parseTextPaste = async () => {
-                    if (!textPasteInput.value.trim()) return;
+                    if (!textPasteInput.value.trim() || !globalSupabase) return;
                     const lines = textPasteInput.value.split('\n');
                     let uploadBatch = [];
                     lines.forEach(line => {
@@ -613,19 +611,28 @@
                         if (cell.length >= 1 && cell[0].trim()) {
                             let rawTags = cell[6] ? cell[6].split(/[|\s]+/) : [];
                             uploadBatch.push({
-                                id: "LOCAL-" + Math.floor(Math.random() * 1000000),
                                 name: cell[0].trim(), protocol: cell[1] ? cell[1].trim() : '',
                                 company: cell[2] ? cell[2].trim() : '', status: cell[3] && cell[3].includes("满") ? "已满额" : "招募中",
-                                startDate: cell[4] ? cell[4].trim() : new Date().toISOString().split('T')[0], regimen: cell[5] ? cell[5].trim() : '',
-                                tags: rawTags.filter(Boolean), description: "",
+                                start_date: cell[4] ? cell[4].trim() : new Date().toISOString().split('T')[0], regimen: cell[5] ? cell[5].trim() : '',
+                                tags: rawTags.filter(Boolean).join('|'), description: "",
                                 inclusion: cell[7] ? cell[7].trim() : "详见内容。", exclusion: cell[8] ? cell[8].trim() : "详见规范。"
                             });
                         }
                     });
-                    localTrials.value = [...localTrials.value, ...uploadBatch];
-                    localStorage.setItem('hz_local_trials', JSON.stringify(localTrials.value));
-                    textPasteInput.value = ''; showImportModal.value = false;
-                    alert("💡 纯文本解析完毕并已导入本地沙盒管理！");
+                    
+                    isLoading.value = true;
+                    try {
+                        const { error } = await globalSupabase.from('trials').insert(uploadBatch);
+                        if (error) throw error;
+                        textPasteInput.value = ''; showImportModal.value = false;
+                        alert("💡 纯文本解析完毕并已成功同步到云数据库！");
+                        await fetchTrialsFromCloud();
+                    } catch (e) {
+                        console.error(e);
+                        alert("文本同步到云端时出错。");
+                    } finally {
+                        isLoading.value = false;
+                    }
                 };
 
                 const handleImageSelect = (e) => { 
@@ -636,8 +643,9 @@
                     }
                 };
 
+                // 核心重构：将 OCR 扫描提取到的新项目直接写入云端
                 const parseImageOCR = async () => {
-                    if (!uploadedImageRaw.value) return;
+                    if (!uploadedImageRaw.value || !globalSupabase) return;
                     isLoading.value = true;
                     try {
                         const result = await Tesseract.recognize(
@@ -662,28 +670,27 @@
                         }
 
                         const ocrPayload = {
-                            id: "LOCAL-" + Math.floor(Math.random() * 1000000),
                             name: detectedName,
                             protocol: "OCR-" + Math.floor(1000 + Math.random() * 9000), 
                             company: extractedText.includes("海和") ? "海和药物" : "未知药企(OCR)", 
                             status: "招募中", 
-                            startDate: new Date().toISOString().split('T')[0], 
+                            start_date: new Date().toISOString().split('T')[0], 
                             regimen: "待细化方案",
-                            tags: ["非小细胞肺癌", "待加工"], 
+                            tags: "非小细胞肺癌|待加工", 
                             description: "智能图片扫描生成。", 
                             inclusion: extractedText, 
                             exclusion: "请后续编辑补全排除指征。"
                         };
 
-                        localTrials.value.push(ocrPayload);
-                        localStorage.setItem('hz_local_trials', JSON.stringify(localTrials.value));
+                        const { error } = await globalSupabase.from('trials').insert([ocrPayload]);
+                        if (error) throw error;
 
-                        alert("🎉 图片文字扫描识别完毕，并已妥善保存！");
+                        alert("🎉 图片文字扫描识别完毕，并已全网云端发布！");
                         cameraImageName.value = ''; uploadedImageRaw.value = null; showImportModal.value = false;
-
+                        await fetchTrialsFromCloud();
                     } catch (err) {
                         console.error(err);
-                        alert("扫描导入失败。");
+                        alert("扫描云端同步失败。");
                     } finally {
                         isLoading.value = false;
                     }
@@ -693,25 +700,23 @@
                     alert("操作成功");
                 };
 
+                // 批量清除选中研究：直接同步删除云数据库条目
                 const deleteSelectedTrials = async () => {
-                    if (selectedTrialIds.value.length === 0) return;
-                    if (confirm(`确定要抹除这 ${selectedTrialIds.value.length} 项选中的研究项目吗？`)) {
+                    if (selectedTrialIds.value.length === 0 || !globalSupabase) return;
+                    if (confirm(`确定要从全网抹除这 ${selectedTrialIds.value.length} 项选中的研究项目吗？`)) {
                         isLoading.value = true;
-                        
-                        const cloudIds = selectedTrialIds.value.filter(id => !String(id).startsWith("LOCAL-"));
-                        const localIds = selectedTrialIds.value.filter(id => String(id).startsWith("LOCAL-"));
-
-                        if (cloudIds.length > 0 && globalSupabase) {
-                            await globalSupabase.from('trials').delete().in('id', cloudIds);
+                        try {
+                            const { error } = await globalSupabase.from('trials').delete().in('id', selectedTrialIds.value);
+                            if (error) throw error;
+                            selectedTrialIds.value = [];
+                            await fetchTrialsFromCloud();
+                            alert("云端批量清理成功，全网已同步变更！");
+                        } catch (e) {
+                            console.error(e);
+                            alert("批量清理失败。");
+                        } finally {
+                            isLoading.value = false;
                         }
-                        if (localIds.length > 0) {
-                            localTrials.value = localTrials.value.filter(t => !localIds.includes(t.id));
-                            localStorage.setItem('hz_local_trials', JSON.stringify(localTrials.value));
-                        }
-
-                        selectedTrialIds.value = [];
-                        await fetchTrialsFromCloud();
-                        alert("批量清理成功！");
                     }
                 };
 
@@ -749,9 +754,13 @@
                     return list.sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
                 });
 
+                // 按当前筛选状态或全量状态计算“招募中”和“已满额”的数量
                 const statusStatistics = computed(() => {
                     const cur = filteredTrials.value;
-                    return { recruitingCount: cur.filter(t => t.status === '招募中').length, fullCount: cur.filter(t => t.status === '已满额').length };
+                    return { 
+                        recruitingCount: cur.filter(t => t.status === '招募中').length, 
+                        fullCount: cur.filter(t => t.status === '已满额').length 
+                    };
                 });
 
                 const totalPages = computed(() => Math.ceil(filteredTrials.value.length / itemsPerPage) || 1);
@@ -793,11 +802,12 @@
                     showManageModal.value = true;
                 };
 
-                // 核心重构：彻底静默过滤云端 RLS 权限错误，100% 自动降级安全保护
+                // 核心重构：手动新建或修改已有项目，全部直接发起云端提交，拒绝写入本地
                 const saveTrial = async () => {
                     if (!manageForm.value.name || !manageForm.value.name.trim()) {
                         return alert("课题研究官方全称不能为空，请检查输入！");
                     }
+                    if (!globalSupabase) return;
                     
                     const parsedTags = manageForm.value.tagsString.split(/[\s|，,]+/).filter(Boolean);
                     isLoading.value = true;
@@ -814,57 +824,52 @@
                         protocol: manageForm.value.protocol ? manageForm.value.protocol.trim() : '',
                         company: manageForm.value.company ? manageForm.value.company.trim() : '',
                         status: manageForm.value.status,
-                        startDate: formattedDate,
+                        start_date: formattedDate,
                         regimen: manageForm.value.regimen ? manageForm.value.regimen.trim() : '',
-                        tags: parsedTags,
+                        tags: parsedTags.join('|'), // 云端以竖线连接
                         description: manageForm.value.description ? manageForm.value.description.trim() : '',
                         inclusion: manageForm.value.inclusion ? manageForm.value.inclusion.trim() : '未录入具体入选标准。',
                         exclusion: manageForm.value.exclusion ? manageForm.value.exclusion.trim() : '未录入具体排除标准。'
                     };
 
-                    // 如果是修改已有的本地离线项目
-                    if (isEditMode.value && String(currentEditId.value).startsWith("LOCAL-")) {
-                        localTrials.value = localTrials.value.map(t => {
-                            if (t.id === currentEditId.value) {
-                                return { id: t.id, ...payload };
-                            }
-                            return t;
-                        });
-                        localStorage.setItem('hz_local_trials', JSON.stringify(localTrials.value));
+                    try {
+                        if (isEditMode.value) {
+                            // 云端修改
+                            const { error } = await globalSupabase.from('trials').update(payload).eq('id', currentEditId.value);
+                            if (error) throw error;
+                        } else {
+                            // 云端新建插入
+                            const { error } = await globalSupabase.from('trials').insert([payload]);
+                            if (error) throw error;
+                        }
+                        
                         showManageModal.value = false;
-                        await fetchTrialsFromCloud();
-                        return;
+                        await fetchTrialsFromCloud(); // 重新加载全网同步过的数据
+                        alert("发布成功！新项目已永久存储并实时更新至网络，所有人刷新均可查看。");
+                    } catch (e) {
+                        console.error(e);
+                        alert("同步至云端数据库失败，请检查数据库策略设置。");
+                    } finally {
+                        isLoading.value = false;
                     }
-
-                    // 默认安全存入离线沙盒，杜绝触发阻断弹窗
-                    if (!isEditMode.value) {
-                        payload.id = "LOCAL-" + Math.floor(Math.random() * 1000000);
-                        localTrials.value.push(payload);
-                    } else {
-                        localTrials.value = localTrials.value.map(t => {
-                            if (t.id === currentEditId.value) {
-                                return { id: t.id, ...payload };
-                            }
-                            return t;
-                        });
-                    }
-                    localStorage.setItem('hz_local_trials', JSON.stringify(localTrials.value));
-                    
-                    showManageModal.value = false;
-                    await fetchTrialsFromCloud();
                 };
 
+                // 删除单条项目：直接同步删除云数据库
                 const deleteTrial = async (id) => {
-                    if (confirm("确定要永久移除此项目吗？")) {
+                    if (confirm("确定要从全网永久移除此项目吗？") && globalSupabase) {
                         isLoading.value = true;
-                        if (String(id).startsWith("LOCAL-")) {
-                            localTrials.value = localTrials.value.filter(item => item.id !== id);
-                            localStorage.setItem('hz_local_trials', JSON.stringify(localTrials.value));
-                        } else if (globalSupabase) {
-                            await globalSupabase.from('trials').delete().eq('id', id);
+                        try {
+                            const { error } = await globalSupabase.from('trials').delete().eq('id', id);
+                            if (error) throw error;
+                            selectedTrialIds.value = selectedTrialIds.value.filter(item => item !== id);
+                            await fetchTrialsFromCloud();
+                            alert("永久移除成功！");
+                        } catch (e) {
+                            console.error(e);
+                            alert("移除失败。");
+                        } finally {
+                            isLoading.value = false;
                         }
-                        selectedTrialIds.value = selectedTrialIds.value.filter(item => item !== id);
-                        await fetchTrialsFromCloud();
                     }
                 };
 
