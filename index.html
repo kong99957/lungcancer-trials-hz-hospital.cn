@@ -5,15 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>哈肿呼吸科胸部肿瘤 临床实验助手</title>
     
-    <!-- 引入 Vue 3 (国内加速源) -->
     <script src="https://registry.npmmirror.com/vue/3.3.4/files/dist/vue.global.js"></script>
-    <!-- 引入官方 Supabase 客户端库 (国内加速源) -->
-    <script src="https://registry.npmmirror.com/@supabase/supabase-js/2.39.0/files/dist/umd/supabase.js"></script>
-    <!-- 引入大表引擎 SheetJS (国内加速源) -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/dist/umd/supabase.js"></script>
     <script src="https://registry.npmmirror.com/xlsx/0.18.5/files/dist/xlsx.full.min.js"></script>
-    <!-- 引入 Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- 引入 FontAwesome 图标库 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
@@ -29,7 +24,6 @@
 
     <div id="app" class="min-h-screen flex flex-col m-auto max-w-7xl shadow-2xl bg-white">
         
-        <!-- 顶部导航与标题栏 -->
         <header class="bg-slate-900 text-white p-4 sticky top-0 z-50 shadow-md flex justify-between items-center border-b border-slate-800">
             <div class="flex items-center space-x-3">
                 <div class="w-11 h-11 bg-white p-1 rounded-xl shadow-inner flex items-center justify-center shrink-0">
@@ -58,10 +52,8 @@
             </div>
         </header>
 
-        <!-- 主体布局 -->
         <main class="flex-1 p-4 md:p-6 grid grid-cols-1 lg:grid-cols-4 gap-6">
             
-            <!-- 左侧筛选栏 -->
             <section class="lg:col-span-1 bg-slate-100/80 p-4 rounded-2xl border border-slate-200/60 space-y-4 h-fit sticky top-24">
                 <div class="flex justify-between items-center border-b pb-3 border-slate-300/60">
                     <h3 class="font-bold text-slate-700 flex items-center gap-1.5 text-xs tracking-wide">
@@ -137,10 +129,8 @@
                 </button>
             </section>
 
-            <!-- 右侧主展示布局 -->
             <section class="lg:col-span-3 flex flex-col space-y-4">
                 
-                <!-- 错误撤销条 -->
                 <div v-if="lastImportedIds.length > 0 && isAdmin" class="bg-amber-50 border-2 border-amber-300 rounded-xl p-3 flex justify-between items-center shadow-sm">
                     <div class="flex items-center space-x-2 text-xs text-amber-800">
                         <i class="fa-solid fa-triangle-exclamation text-amber-600 text-sm animate-pulse"></i>
@@ -151,7 +141,6 @@
                     </button>
                 </div>
 
-                <!-- 关键词快速检索面板 -->
                 <div class="bg-white p-4 border border-slate-200 rounded-xl shadow-sm space-y-3">
                     <div class="flex flex-wrap gap-2 items-center">
                         <span class="text-[11px] font-bold text-slate-500 mr-1"><i class="fa-solid fa-magnifying-glass text-blue-500"></i> 快速检索:</span>
@@ -161,7 +150,6 @@
                         <input type="text" v-model="searchKeyword" placeholder="搜索研究信息，如药物、靶点" class="text-xs p-1.5 border border-slate-300 rounded-lg ml-auto w-full sm:w-auto outline-none focus:border-blue-500" />
                     </div>
 
-                    <!-- 项目状态监控 -->
                     <div class="flex items-center space-x-4 pt-2 border-t border-slate-100">
                         <span class="text-[10px] font-bold text-slate-400 tracking-wider uppercase flex items-center gap-1"><i class="fa-solid fa-cloud-arrow-up text-blue-500"></i> 云端状态监控:</span>
                         <div class="bg-emerald-50 border border-emerald-200 text-emerald-800 px-2.5 py-1 rounded-lg text-[11px]">
@@ -173,7 +161,6 @@
                     </div>
                 </div>
 
-                <!-- 核心操作工作台 -->
                 <div v-if="isAdmin" class="bg-slate-100 p-3 rounded-xl border border-slate-200 flex flex-wrap items-center justify-between gap-3 shadow-inner">
                     <div class="flex items-center space-x-2">
                         <button @click="toggleSelectAllOnPage" class="text-[11px] bg-white hover:bg-slate-50 text-slate-700 border px-2.5 py-1.5 rounded-lg transition font-medium">
@@ -197,15 +184,12 @@
                     </div>
                 </div>
 
-                <!-- 结果数量显示提示 -->
                 <div v-if="hasFilteredSubmitted" class="bg-blue-50 border border-blue-200 text-blue-800 p-3 rounded-xl text-xs font-semibold flex items-center justify-between">
                     <span><i class="fa-solid fa-circle-info mr-1"></i> 特征筛选结果：发现 <strong class="text-blue-700 text-sm font-bold">{{ filteredTrials.length }}</strong> 项符合受试要求的临床研究。</span>
                     <button @click="hasFilteredSubmitted = false" class="text-blue-400 hover:text-blue-600 font-bold text-sm">&times;</button>
                 </div>
 
-                <!-- 试验大表卡片数据流 -->
                 <div class="space-y-5 relative">
-                    <!-- 云端连接动画遮罩 -->
                     <div v-if="isLoading" class="absolute inset-0 bg-white/70 backdrop-blur-xs flex items-center justify-center py-20 z-20 rounded-2xl">
                         <div class="text-center text-xs text-blue-600 font-bold flex flex-col items-center gap-2">
                             <i class="fa-solid fa-circle-notch animate-spin text-3xl text-blue-500"></i>
@@ -261,7 +245,6 @@
                         </div>
                     </div>
 
-                    <!-- 翻页器 -->
                     <div v-if="totalPages > 1" class="flex justify-center items-center space-x-2 pt-3">
                         <button @click="goToPage(currentPage - 1)" :disabled="currentPage === 1" class="px-3 py-1.5 border border-slate-200 rounded-xl text-xs bg-white text-slate-600 font-medium disabled:opacity-40 transition shadow-sm">上一页</button>
                         <span class="text-xs font-semibold text-slate-500 px-2">第 {{ currentPage }} / {{ totalPages }} 页</span>
@@ -271,7 +254,6 @@
             </section>
         </main>
 
-        <!-- 全能批量合入工作台 -->
         <div v-if="showImportModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
             <div class="bg-white rounded-2xl shadow-2xl w-full max-w-xl p-6 border border-slate-200">
                 <div class="flex justify-between items-center border-b pb-3 mb-4">
@@ -294,13 +276,12 @@
                     </button>
                 </div>
 
-                <!-- 电子表格解析区 -->
                 <div v-if="importType === 'excel'" class="space-y-4">
                     <div @dragover.prevent="isDragOver = true" @dragleave="isDragOver = false" @drop.prevent="handleFileDrop" :class="{'drag-over': isDragOver}" class="border-2 border-dashed border-slate-300 hover:border-blue-500 rounded-xl p-8 text-center cursor-pointer transition relative bg-slate-50">
                         <input type="file" accept=".xlsx,.xls,.xlsm,.xlsb,.csv,.txt" @change="handleFileSelect" class="absolute inset-0 opacity-0 cursor-pointer" />
                         <div v-if="!uploadedFileRaw" class="space-y-2 text-slate-500">
                             <i class="fa-solid fa-screwdriver-wrench text-4xl text-blue-400"></i>
-                            <p class="text-xs font-semibold">将临床研究大表 (Excel / CSV) 拖入或点击上传</p>
+                            <p class="text-xs font-semibold">将 clinical 研究大表 (Excel / CSV) 拖入或点击上传</p>
                         </div>
                         <div class="text-xs font-bold text-emerald-600 flex flex-col items-center gap-1" v-else>
                             <i class="fa-solid fa-circle-check text-2xl animate-bounce"></i>
@@ -310,13 +291,11 @@
                     <button @click="parseUploadedFile" :disabled="!uploadedFileRaw" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl text-xs shadow transition disabled:opacity-40"><i class="fa-solid fa-shield-halved"></i> 启动全能引擎对齐并永久同步至云端</button>
                 </div>
 
-                <!-- 纯文本复制 -->
                 <div v-if="importType === 'text'" class="space-y-3">
                     <textarea v-model="textPasteInput" rows="5" class="w-full p-2.5 border border-slate-300 rounded-xl text-xs font-mono outline-none focus:border-blue-500" placeholder="课题全称, 项目编号, 药企公司, 招募状态, 入组时间, 用药方案, 核心特点标签, 入选表现, 排除表现"></textarea>
                     <button @click="parseTextPaste" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-lg text-xs shadow">解析并即时上传至云数据库</button>
                 </div>
 
-                <!-- 图片识别 -->
                 <div v-if="importType === 'image'" class="space-y-4">
                     <div class="border-2 border-dashed border-slate-300 hover:border-emerald-500 rounded-xl p-8 text-center cursor-pointer transition bg-slate-50 relative">
                         <input type="file" accept="image/*" @change="handleImageSelect" class="absolute inset-0 opacity-0 cursor-pointer" />
@@ -331,7 +310,6 @@
             </div>
         </div>
 
-        <!-- 查看详情标准弹窗 -->
         <div v-if="selectedTrial" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
             <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col">
                 <div class="p-4 border-b bg-slate-50 flex justify-between items-start rounded-t-2xl">
@@ -364,7 +342,6 @@
             </div>
         </div>
 
-        <!-- 手动单条发布修改面板 -->
         <div v-if="showManageModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
             <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
                 <div class="p-4 border-b bg-slate-50 flex justify-between items-center rounded-t-2xl">
@@ -374,7 +351,6 @@
                 <div class="p-4 overflow-y-auto space-y-3 text-xs grid grid-cols-1 md:grid-cols-2 gap-3 custom-scrollbar">
                     <div class="md:col-span-2">
                         <label class="block font-bold text-slate-600 mb-1">课题研究官方全称 *</label>
-                        <!-- 🛡️ 深度优化：绑定双向数据，确保手动输入的文本被 Vue 实时感知 -->
                         <input type="text" v-model="manageForm.name" class="w-full p-2 border border-slate-300 rounded-lg outline-none text-slate-900 font-medium">
                     </div>
                     <div>
@@ -424,7 +400,6 @@
             </div>
         </div>
 
-        <!-- 管理员身份验证 -->
         <div v-if="showLoginModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
             <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
                 <div class="flex justify-between items-center mb-4">
@@ -446,7 +421,6 @@
             </div>
         </div>
 
-        <!-- 页脚 -->
         <footer class="bg-slate-900 border-t border-slate-800 text-slate-500 text-center p-4 text-[10px] mt-auto tracking-wider font-medium">
             哈肿临床试验研究项目综合管理系统
         </footer>
@@ -459,12 +433,14 @@
         const SUPABASE_KEY = "sb_publishable_td6jG96VyiWhzilHVzjGng_9fQIc6vs";
         
         let globalSupabase = null;
+        // 🔒 强化绑定天线：直接尝试从 window 空间中捕捉并强行组装官方 UMD 句柄
         try {
-            if (typeof supabase !== 'undefined' && supabase.createClient) {
-                globalSupabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+            const supabaseLib = window.supabase || supabase;
+            if (supabaseLib && supabaseLib.createClient) {
+                globalSupabase = supabaseLib.createClient(SUPABASE_URL, SUPABASE_KEY);
             }
         } catch (e) {
-            console.error("Supabase 网关异常拦截:", e);
+            console.error("网关隔离:", e);
         }
 
         createApp({
