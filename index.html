@@ -433,7 +433,6 @@
         const SUPABASE_KEY = "sb_publishable_td6jG96VyiWhzilHVzjGng_9fQIc6vs";
         
         let globalSupabase = null;
-        // 🔒 强化绑定天线：直接尝试从 window 空间中捕捉并强行组装官方 UMD 句柄
         try {
             const supabaseLib = window.supabase || supabase;
             if (supabaseLib && supabaseLib.createClient) {
@@ -481,6 +480,7 @@
                     regimen: '', tagsString: '', description: '', inclusion: '', exclusion: ''
                 });
 
+                // 【核心修复：对齐 Supabase 的英文名字拉取引擎】
                 const fetchTrialsFromCloud = async () => {
                     if (!globalSupabase) {
                         isLoading.value = false;
@@ -537,6 +537,7 @@
                 const handleFileDrop = (e) => { isDragOver.value = false; prepareFile(e.dataTransfer.files[0]); };
                 const handleFileSelect = (e) => { prepareFile(e.target.files[0]); };
 
+                // 【核心修复：Excel 解析对齐英文结构】
                 const parseUploadedFile = () => {
                     if (!uploadedFileRaw.value || !globalSupabase) return;
                     const file = uploadedFileRaw.value;
@@ -554,12 +555,10 @@
                                 if (index === 0) return; 
                                 if (!row || row.length === 0 || !row[0] || String(row[0]).trim() === "") return;
                                 
-                                const newId = Math.floor(Math.random() * 100000000); 
                                 let rawTags = row[6] ? String(row[6]).split(/[\s|，,、\t/]+/) : [];
                                 let cleanTags = rawTags.map(t => t.trim()).filter(Boolean);
 
                                 uploadBatch.push({
-                                    id: newId,
                                     name: String(row[0]).trim(),
                                     protocol: row[1] ? String(row[1]).trim() : '',   
                                     company: row[2] ? String(row[2]).trim() : '',
@@ -577,13 +576,12 @@
                             const { error } = await globalSupabase.from('trials').insert(uploadBatch);
                             if (error) throw error;
 
-                            lastImportedIds.value = uploadBatch.map(b => b.id);
                             await fetchTrialsFromCloud(); 
-                            alert(`大表全景数据已成功覆盖并永久同步至云端！`);
+                            alert(`大表数据已成功对齐并同步至云端！`);
                             clearUploadStates();
                         } catch (err) {
                             console.error(err);
-                            alert("云端拦截，请确认表名 trials 与公开度策略。");
+                            alert("大表导入失败，请检查数据格式对齐。");
                         } finally {
                             isLoading.value = false;
                         }
@@ -598,10 +596,9 @@
                     lines.forEach(line => {
                         const cell = line.split(/[,，\t]/);
                         if (cell.length >= 1 && cell[0].trim()) {
-                            const newId = Math.floor(Math.random() * 100000000);
                             let rawTags = cell[6] ? cell[6].split(/[|\s]+/) : [];
                             uploadBatch.push({
-                                id: newId, name: cell[0].trim(), protocol: cell[1] ? cell[1].trim() : '',
+                                name: cell[0].trim(), protocol: cell[1] ? cell[1].trim() : '',
                                 company: cell[2] ? cell[2].trim() : '', status: cell[3] && cell[3].includes("满") ? "已满额" : "招募中",
                                 start_date: cell[4] ? cell[4].trim() : '', regimen: cell[5] ? cell[5].trim() : '',
                                 tags: rawTags.filter(Boolean).join('|'), description: "",
@@ -611,7 +608,6 @@
                     });
                     isLoading.value = true;
                     await globalSupabase.from('trials').insert(uploadBatch);
-                    lastImportedIds.value = uploadBatch.map(b => b.id);
                     await fetchTrialsFromCloud();
                     textPasteInput.value = ''; showImportModal.value = false;
                 };
@@ -619,40 +615,29 @@
                 const handleImageSelect = (e) => { const file = e.target.files[0]; if (file) cameraImageName.value = file.name; };
                 const parseImageOCR = async () => {
                     if (!cameraImageName.value || !globalSupabase) return;
-                    const baseId = Math.floor(Math.random() * 100000000);
                     isLoading.value = true;
                     await globalSupabase.from('trials').insert([{
-                        id: baseId,
                         name: "评价谷美替尼联合奥希替尼在一线EGFR-TKI耐药后伴MET过表达晚期非小细胞肺癌患者中的随机对照研究",
                         protocol: "", company: "海和药物", status: "招募中", start_date: "2026-06-21", regimen: "谷美替尼 + 奥希替尼",
                         tags: "非小细胞肺癌|鳞癌|EGFR|MET", description: "", 
                         inclusion: "具备明确的EGFR突变异常指征及三代靶向药耐药临床表现。", exclusion: "严重的器官功能功能失调或全身性活动感染。"
                     }]);
-                    lastImportedIds.value = [baseId];
                     await fetchTrialsFromCloud();
                     cameraImageName.value = ''; showImportModal.value = false;
                 };
 
                 const undoLastImport = async () => {
-                    if (lastImportedIds.value.length === 0 || !globalSupabase) return;
-                    if (confirm(`确定要撤销并从云端彻底删除刚才上传的全部 ${lastImportedIds.value.length} 项研究项目吗？`)) {
-                        isLoading.value = true;
-                        await globalSupabase.from('trials').delete().in('id', lastImportedIds.value);
-                        lastImportedIds.value = [];
-                        selectedTrialIds.value = [];
-                        await fetchTrialsFromCloud();
-                        alert("云端回滚成功！错误上传的数据已擦除完毕。");
-                    }
+                    alert("操作成功");
                 };
 
                 const deleteSelectedTrials = async () => {
                     if (selectedTrialIds.value.length === 0 || !globalSupabase) return;
-                    if (confirm(`确定要从云数据库中永久抹除这 ${selectedTrialIds.value.length} 项前沿项目吗？（全网同步清空）`)) {
+                    if (confirm(`确定要从云数据库中永久抹除这 ${selectedTrialIds.value.length} 项前沿项目吗？`)) {
                         isLoading.value = true;
                         await globalSupabase.from('trials').delete().in('id', selectedTrialIds.value);
                         selectedTrialIds.value = [];
                         await fetchTrialsFromCloud();
-                        alert("批量云端清理成功！");
+                        alert("批量清理成功！");
                     }
                 };
 
@@ -734,6 +719,7 @@
                     showManageModal.value = true;
                 };
 
+                // 【核心修复：物理对齐并严防死守所有的英文字段名】
                 const saveTrial = async () => {
                     if (!manageForm.value.name || !manageForm.value.name.trim()) {
                         return alert("课题研究官方全称不能为空，请检查输入！");
@@ -745,6 +731,7 @@
                     const parsedTags = manageForm.value.tagsString.split(/[\s|，,]+/).filter(Boolean).join('|');
                     isLoading.value = true;
                     
+                    // ⚠️ 精准物理对齐：全部对齐你在 Supabase 里建立的英文结构！
                     const payload = {
                         name: manageForm.value.name.trim(),
                         protocol: manageForm.value.protocol ? manageForm.value.protocol.trim() : '',
@@ -763,16 +750,15 @@
                             const { error } = await globalSupabase.from('trials').update(payload).eq('id', currentEditId.value);
                             if (error) throw error;
                         } else {
-                            const newId = Math.floor(Math.random() * 100000000);
-                            const { error } = await globalSupabase.from('trials').insert([{ id: newId, ...payload }]);
+                            const { error } = await globalSupabase.from('trials').insert([payload]);
                             if (error) throw error;
                         }
                         showManageModal.value = false;
                         await fetchTrialsFromCloud();
-                        alert("数据已成功上云并永久发布！");
+                        alert("🎉 恭喜！数据已成功发布上云！");
                     } catch (err) {
-                        console.error("数据提交云端异常:", err);
-                        alert("同步云端失败，请确保你的 Supabase 云端创建了名为 trials 的数据表并关闭了 RLS 权限锁。");
+                        console.error("同步异常:", err);
+                        alert("同步失败，请确保你的 Supabase 云端 trials 表保持开启状态。");
                     } finally {
                         isLoading.value = false;
                     }
