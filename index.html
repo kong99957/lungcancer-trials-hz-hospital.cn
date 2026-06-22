@@ -61,7 +61,7 @@
         <!-- 主体布局 -->
         <main class="flex-1 p-4 md:p-6 grid grid-cols-1 lg:grid-cols-4 gap-6">
             
-            <!-- 左侧筛选栏 -->
+            <!-- 左侧受试者特征筛选栏 -->
             <section class="lg:col-span-1 bg-slate-100/80 p-4 rounded-2xl border border-slate-200/60 space-y-4 h-fit sticky top-24">
                 <div class="flex justify-between items-center border-b pb-3 border-slate-300/60">
                     <h3 class="font-bold text-slate-700 flex items-center gap-1.5 text-xs tracking-wide">
@@ -457,14 +457,14 @@
         const SUPABASE_URL = "https://tqdmcdcvknqygwkpemll.supabase.co";
         const SUPABASE_KEY = "sb_publishable_td6jG96VyiWhzilHVzjGng_9fQIc6vs";
         
-        // 🔒 高级容错封装：保证即便网络通讯异常，前端整个 Vue 3 引擎也绝对不挂、不卡死
-        let supabaseClient = null;
+        // 🔒 容错核心封装优化：确保无论数据库驱动有何异常，前端 Vue 核心主应用也绝不挂起、不卡死
+        let globalSupabase = null;
         try {
             if (typeof supabase !== 'undefined' && supabase.createClient) {
-                supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+                globalSupabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
             }
         } catch (e) {
-            console.error("Supabase 初始化异常:", e);
+            console.error("Supabase 安全网关异常隔离拦截:", e);
         }
 
         createApp({
@@ -505,15 +505,15 @@
                     regimen: '', tagsString: '', description: '', inclusion: '', exclusion: ''
                 });
 
-                // 【物理对齐拉取核心，完美拼写修复】
+                // 【云端物理数据抓取引擎】
                 const fetchTrialsFromCloud = async () => {
-                    if (!supabaseClient) {
+                    if (!globalSupabase) {
                         isLoading.value = false;
                         return;
                     }
                     isLoading.value = true;
                     try {
-                        const { data, error } = await supabaseClient.from('trials').select('*');
+                        const { data, error } = await globalSupabase.from('trials').select('*');
                         if (error) {
                             mockTrials.value = [];
                         } else if (data) {
@@ -563,7 +563,7 @@
                 const handleFileSelect = (e) => { prepareFile(e.target.files[0]); };
 
                 const parseUploadedFile = () => {
-                    if (!uploadedFileRaw.value || !supabaseClient) return;
+                    if (!uploadedFileRaw.value || !globalSupabase) return;
                     const file = uploadedFileRaw.value;
                     const reader = new FileReader();
 
@@ -599,7 +599,7 @@
                             });
 
                             isLoading.value = true;
-                            const { error } = await supabaseClient.from('trials').insert(uploadBatch);
+                            const { error } = await globalSupabase.from('trials').insert(uploadBatch);
                             if (error) throw error;
 
                             lastImportedIds.value = uploadBatch.map(b => b.id);
@@ -608,7 +608,7 @@
                             clearUploadStates();
                         } catch (err) {
                             console.error(err);
-                            alert("通讯异常，请确认云端项目建表无误。");
+                            alert("云端拦截，请确认表名 trials 与公开度策略。");
                         } finally {
                             isLoading.value = false;
                         }
@@ -617,7 +617,7 @@
                 };
 
                 const parseTextPaste = async () => {
-                    if (!textPasteInput.value.trim() || !supabaseClient) return;
+                    if (!textPasteInput.value.trim() || !globalSupabase) return;
                     const lines = textPasteInput.value.split('\n');
                     let uploadBatch = [];
                     lines.forEach(line => {
@@ -635,7 +635,7 @@
                         }
                     });
                     isLoading.value = true;
-                    await supabaseClient.from('trials').insert(uploadBatch);
+                    await globalSupabase.from('trials').insert(uploadBatch);
                     lastImportedIds.value = uploadBatch.map(b => b.id);
                     await fetchTrialsFromCloud();
                     textPasteInput.value = ''; showImportModal.value = false;
@@ -643,10 +643,10 @@
 
                 const handleImageSelect = (e) => { const file = e.target.files[0]; if (file) cameraImageName.value = file.name; };
                 const parseImageOCR = async () => {
-                    if (!cameraImageName.value || !supabaseClient) return;
+                    if (!cameraImageName.value || !globalSupabase) return;
                     const baseId = Math.floor(Math.random() * 100000000);
                     isLoading.value = true;
-                    await supabaseClient.from('trials').insert([{
+                    await globalSupabase.from('trials').insert([{
                         id: baseId,
                         name: "评价谷美替尼联合奥希替尼在一线EGFR-TKI耐药后伴MET过表达晚期非小细胞肺癌患者中的随机对照研究",
                         protocol: "", company: "海和药物", status: "招募中", start_date: "2026-06-21", regimen: "谷美替尼 + 奥希替尼",
@@ -659,10 +659,10 @@
                 };
 
                 const undoLastImport = async () => {
-                    if (lastImportedIds.value.length === 0 || !supabaseClient) return;
+                    if (lastImportedIds.value.length === 0 || !globalSupabase) return;
                     if (confirm(`确定要撤销并从云端彻底删除刚才上传的全部 ${lastImportedIds.value.length} 项研究项目吗？`)) {
                         isLoading.value = true;
-                        await supabaseClient.from('trials').delete().in('id', lastImportedIds.value);
+                        await globalSupabase.from('trials').delete().in('id', lastImportedIds.value);
                         lastImportedIds.value = [];
                         selectedTrialIds.value = [];
                         await fetchTrialsFromCloud();
@@ -671,10 +671,10 @@
                 };
 
                 const deleteSelectedTrials = async () => {
-                    if (selectedTrialIds.value.length === 0 || !supabaseClient) return;
+                    if (selectedTrialIds.value.length === 0 || !globalSupabase) return;
                     if (confirm(`确定要从云数据库中永久抹除这 ${selectedTrialIds.value.length} 项前沿项目吗？（全网同步清空）`)) {
                         isLoading.value = true;
-                        await supabaseClient.from('trials').delete().in('id', selectedTrialIds.value);
+                        await globalSupabase.from('trials').delete().in('id', selectedTrialIds.value);
                         selectedTrialIds.value = [];
                         await fetchTrialsFromCloud();
                         alert("批量云端清理成功！");
@@ -760,7 +760,7 @@
                 };
 
                 const saveTrial = async () => {
-                    if (!manageForm.value.name || !supabaseClient) return alert("课题名称不能为空");
+                    if (!manageForm.value.name || !globalSupabase) return alert("课题名称不能为空");
                     const parsedTags = manageForm.value.tagsString.split(/[\s|，,]+/).filter(Boolean).join('|');
                     
                     isLoading.value = true;
@@ -778,19 +778,19 @@
                     };
 
                     if (isEditMode.value) {
-                        await supabaseClient.from('trials').update(payload).eq('id', currentEditId.value);
+                        await globalSupabase.from('trials').update(payload).eq('id', currentEditId.value);
                     } else {
                         const newId = Math.floor(Math.random() * 100000000);
-                        await supabaseClient.from('trials').insert([{ id: newId, ...payload }]);
+                        await globalSupabase.from('trials').insert([{ id: newId, ...payload }]);
                     }
                     showManageModal.value = false;
                     await fetchTrialsFromCloud();
                 };
 
                 const deleteTrial = async (id) => {
-                    if (confirm("确定要永久从云端移除此项目吗？") && supabaseClient) {
+                    if (confirm("确定要永久从云端移除此项目吗？") && globalSupabase) {
                         isLoading.value = true;
-                        await supabaseClient.from('trials').delete().eq('id', id);
+                        await globalSupabase.from('trials').delete().eq('id', id);
                         selectedTrialIds.value = selectedTrialIds.value.filter(item => item !== id);
                         await fetchTrialsFromCloud();
                     }
