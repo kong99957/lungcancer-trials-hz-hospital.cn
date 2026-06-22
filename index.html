@@ -160,12 +160,15 @@
 
                     <div class="flex items-center space-x-4 pt-2 border-t border-slate-100">
                         <span class="text-[10px] font-bold text-slate-400 tracking-wider uppercase flex items-center gap-1"><i class="fa-solid fa-chart-pie text-blue-500"></i> 项目状态防护监控:</span>
-                        <div class="flex items-center gap-2">
+                        <div class="flex flex-wrap items-center gap-2">
                             <span class="bg-emerald-50 border border-emerald-200 text-emerald-800 px-2.5 py-1 rounded-lg text-[11px]">
                                 招募中: <strong class="font-bold text-emerald-700 font-mono text-xs">{{ statusStatistics.recruitingCount }}</strong> 项
                             </span>
                             <span class="bg-amber-50 border border-amber-200 text-amber-800 px-2.5 py-1 rounded-lg text-[11px]">
                                 已满额: <strong class="font-bold text-amber-700 font-mono text-xs">{{ statusStatistics.fullCount }}</strong> 项
+                            </span>
+                            <span class="bg-slate-100 border border-slate-300 text-slate-800 px-2.5 py-1 rounded-lg text-[11px]">
+                                已结束: <strong class="font-bold text-slate-700 font-mono text-xs">{{ statusStatistics.endedCount }}</strong> 项
                             </span>
                         </div>
                     </div>
@@ -222,14 +225,24 @@
                         <div :class="{'pl-6': isAdmin}">
                             <div class="flex justify-between items-start gap-4 mb-2.5">
                                 <h4 class="font-bold text-sm md:text-base text-slate-900 leading-snug pt-0.5">{{ trial.name }}</h4>
-                                <span :class="trial.status === '招募中' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'" class="text-[10px] px-2.5 py-0.5 rounded-md font-bold border shrink-0">{{ trial.status }}</span>
+                                <span :class="trial.status === '招募中' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : (trial.status === '已满额' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-slate-100 text-slate-600 border-slate-300')" class="text-[10px] px-2.5 py-0.5 rounded-md font-bold border shrink-0">{{ trial.status }}</span>
                             </div>
 
-                            <div class="text-[11px] text-slate-500 flex flex-wrap gap-x-4 gap-y-1 mb-3 border-b border-slate-100 pb-2.5">
+                            <div class="text-[11px] text-slate-500 flex flex-wrap gap-x-4 gap-y-1.5 mb-3 border-b border-slate-100 pb-2.5">
                                 <span><strong class="text-slate-600">项目编号：</strong>{{ trial.protocol || '--' }}</span>
                                 <span><strong class="text-slate-600">药企公司：</strong>{{ trial.company || '--' }}</span>
                                 <span><strong class="text-slate-600">入组时间：</strong>{{ trial.startDate || '--' }}</span>
+                                <span><strong class="text-slate-600">结束时间：</strong>{{ trial.endDate || '--' }}</span>
                                 <span v-if="trial.regimen && trial.regimen.trim()"><strong class="text-slate-600">方案：</strong><span class="text-blue-700 font-medium">{{ trial.regimen }}</span></span>
+                            </div>
+
+                            <div class="flex flex-wrap gap-2 mb-3 text-xs">
+                                <span class="bg-blue-50 text-blue-800 border border-blue-100 px-2 py-0.5 rounded-md font-medium">目标总人数: <strong class="font-bold">{{ trial.totalSlots || '--' }}</strong> 人</span>
+                                <span class="bg-emerald-50 text-emerald-800 border border-emerald-100 px-2 py-0.5 rounded-md font-medium">已入组: <strong class="font-bold">{{ trial.filledSlots || '0' }}</strong> 人</span>
+                                <span class="bg-rose-50 text-rose-800 border border-rose-100 px-2 py-0.5 rounded-md font-medium">剩余空额: <strong class="font-bold">{{ calculateRemaining(trial) }}</strong> 人</span>
+                                <span v-if="trial.status !== '已结束' && trial.endDate" class="bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-md font-semibold">
+                                    <i class="fa-regular fa-clock mr-0.5"></i>距离截止仅剩: <strong class="text-amber-700 font-mono">{{ getRemainingDays(trial.endDate) }}</strong> 天
+                                </span>
                             </div>
 
                             <p class="text-xs text-slate-600 class whitespace-pre-line mb-3.5 bg-slate-50 p-2.5 rounded-xl border border-slate-100/80">
@@ -326,7 +339,7 @@
             <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col">
                 <div class="p-4 border-b bg-slate-50 flex justify-between items-start rounded-t-2xl">
                     <div>
-                        <span :class="selectedTrial.status === '招募中' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-amber-100 text-amber-800 border-amber-200'" class="text-[10px] font-bold px-2 py-0.5 rounded mr-2 border">{{ selectedTrial.status }}</span>
+                        <span :class="selectedTrial.status === '招募中' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : (selectedTrial.status === '已满额' ? 'bg-amber-100 text-amber-800 border-amber-200' : 'bg-slate-100 text-slate-700 border-slate-300')" class="text-[10px] font-bold px-2 py-0.5 rounded mr-2 border">{{ selectedTrial.status }}</span>
                         <h3 class="text-base font-bold text-slate-900 inline-block mt-1">{{ selectedTrial.name }}</h3>
                     </div>
                     <button @click="selectedTrial = null" class="text-slate-400 hover:text-slate-600 text-2xl font-bold p-1">&times;</button>
@@ -335,8 +348,11 @@
                     <div class="bg-slate-50 p-3 rounded-xl border grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-slate-600">
                         <p><strong>项目编号：</strong>{{ selectedTrial.protocol || '--' }}</p>
                         <p><strong>申办药企：</strong>{{ selectedTrial.company || '--' }}</p>
-                        <p><strong>入组时间：</strong>{{ selectedTrial.startDate || '--' }}</p>
-                        <p><strong>用药方案：</strong>{{ selectedTrial.regimen || '--' }}</p>
+                        <p><strong>入组开始：</strong>{{ selectedTrial.startDate || '--' }}</p>
+                        <p><strong>预计结束：</strong>{{ selectedTrial.endDate || '--' }}</p>
+                        <p><strong>总目标slots：</strong>{{ selectedTrial.totalSlots || '--' }} 人</p>
+                        <p><strong>当前已入组：</strong>{{ selectedTrial.filledSlots || '0' }} 人</p>
+                        <p class="md:col-span-2"><strong>用药方案：</strong>{{ selectedTrial.regimen || '--' }}</p>
                     </div>
                     <div class="bg-emerald-50 border border-emerald-200 p-4 rounded-xl">
                         <h4 class="font-bold text-emerald-900 flex items-center gap-1.5 mb-2 text-xs uppercase tracking-wider"><i class="fa-solid fa-square-check text-emerald-600 text-sm"></i> 入选标准</h4>
@@ -372,21 +388,43 @@
                         <label class="block font-bold text-slate-600 mb-1">申办公司</label>
                         <input type="text" v-model="manageForm.company" class="w-full p-2 border border-slate-300 rounded-lg">
                     </div>
-                    <div>
+                    <div class="md:col-span-2">
                         <label class="block font-bold text-slate-600 mb-1">用药方案</label>
-                        <input type="text" v-model="manageForm.regimen" class="w-full p-2 border border-slate-300 rounded-lg" placeholder="用药方案组合，若无可不填">
+                        <input type="text" v-model="manageForm.regimen" class="w-full p-2 border border-slate-300 rounded-lg" placeholder="用药方案组合">
                     </div>
+                    
                     <div>
-                        <label class="block font-bold text-slate-600 mb-1">入组招募状态</label>
+                        <label class="block font-bold text-slate-600 mb-1">入组招募状态 *</label>
                         <select v-model="manageForm.status" class="w-full p-2 border border-slate-300 rounded-lg bg-white">
                             <option value="招募中">招募中</option>
                             <option value="已满额">已满额</option>
+                            <option value="已结束">已结束</option>
                         </select>
                     </div>
+                    <div></div>
+
                     <div>
-                        <label class="block font-bold text-slate-600 mb-1">入组时间</label>
+                        <label class="block font-bold text-slate-600 mb-1">开始入组时间</label>
                         <input type="date" v-model="manageForm.startDate" class="w-full p-2 border border-slate-300 rounded-lg">
                     </div>
+                    <div>
+                        <label class="block font-bold text-slate-600 mb-1">预计结束时间</label>
+                        <input type="date" v-model="manageForm.endDate" class="w-full p-2 border border-slate-300 rounded-lg">
+                    </div>
+
+                    <div>
+                        <label class="block font-bold text-slate-600 mb-1">总入组人数 (目标数)</label>
+                        <input type="number" v-model.number="manageForm.totalSlots" min="0" class="w-full p-2 border border-slate-300 rounded-lg" placeholder="目标总病患数">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-600 mb-1">已入组人数</label>
+                        <input type="number" v-model.number="manageForm.filledSlots" min="0" class="w-full p-2 border border-slate-300 rounded-lg" placeholder="当前完成入组数">
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="block font-bold text-slate-400 mb-1">剩余可招募名额 (自动动态计算)</label>
+                        <input type="text" :value="manageForm.totalSlots - manageForm.filledSlots >= 0 ? manageForm.totalSlots - manageForm.filledSlots : 0" disabled class="w-full p-2 border border-slate-200 bg-slate-50 text-slate-500 rounded-lg font-mono font-bold">
+                    </div>
+
                     <div class="md:col-span-2">
                         <label class="block font-bold text-slate-600 mb-1">核心特点特征标签（空格或竖线隔开） *</label>
                         <input type="text" v-model="manageForm.tagsString" class="w-full p-2 border border-slate-300 rounded-lg" placeholder="例如：非小细胞肺癌 鳞癌 Ⅲ期 PD-L1高表达">
@@ -495,9 +533,10 @@
                 const isEditMode = ref(false);
                 const currentEditId = ref(null);
                 
+                // 升级更新：管理端状态树新增结束日期、总指标、已招募指标
                 const manageForm = ref({
-                    name: '', protocol: '', company: '', status: '招募中', startDate: '', 
-                    regimen: '', tagsString: '', description: '', inclusion: '', exclusion: ''
+                    name: '', protocol: '', company: '', status: '招募中', startDate: '', endDate: '',
+                    totalSlots: 0, filledSlots: 0, regimen: '', tagsString: '', description: '', inclusion: '', exclusion: ''
                 });
 
                 const fetchTrialsFromCloud = async () => {
@@ -516,6 +555,9 @@
                                 company: item.company || '',
                                 status: item.status || '招募中',
                                 startDate: item.start_date || '',
+                                endDate: item.end_date || '',
+                                totalSlots: item.total_slots || 0,
+                                filledSlots: item.filled_slots || 0,
                                 regimen: item.regimen || '',
                                 tags: item.tags ? item.tags.split('|') : [],
                                 description: item.description || '',
@@ -557,6 +599,25 @@
                     isFilterExpanded.value = false; 
                 };
 
+                // 核心功能：快速精准计算剩余可入组名额
+                const calculateRemaining = (trial) => {
+                    const diff = (trial.totalSlots || 0) - (trial.filledSlots || 0);
+                    return diff >= 0 ? diff : 0;
+                };
+
+                // 核心功能：实时精准运算倒计时天数
+                const getRemainingDays = (endDateString) => {
+                    if (!endDateString) return '--';
+                    const targetDate = new Date(endDateString);
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    targetDate.setHours(0, 0, 0, 0);
+                    const diffTime = targetDate - today;
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    return diffDays >= 0 ? diffDays : 0;
+                };
+
+                // 核心控制重构：筛选与全量自适应排序，按结束时间距离当前时间由短到长置顶渲染（已结束垫底）
                 const filteredTrials = computed(() => {
                     let list = [...mockTrials.value];
                     if (filters.value.diseaseType) list = list.filter(t => t.tags.includes(filters.value.diseaseType));
@@ -571,14 +632,32 @@
                         const kw = searchKeyword.value.trim().toLowerCase();
                         list = list.filter(t => t.name.toLowerCase().includes(kw) || t.protocol.toLowerCase().includes(kw) || t.regimen.toLowerCase().includes(kw) || t.tags.some(tag => tag.toLowerCase().includes(kw)));
                     }
-                    return list.sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
+
+                    // 升级版综合加权临床排序规则
+                    return list.sort((a, b) => {
+                        // 1. 已结束项目在最下方显示
+                        if (a.status === '已结束' && b.status !== '已结束') return 1;
+                        if (a.status !== '已结束' && b.status === '已结束') return -1;
+                        
+                        // 2. 均未结束或均已结束，按照截止时间由近到远（最短剩余时间优先）
+                        if (a.endDate && b.endDate) {
+                            return new Date(a.endDate) - new Date(b.endDate);
+                        }
+                        if (a.endDate && !b.endDate) return -1;
+                        if (!a.endDate && b.endDate) return 1;
+
+                        // 3. 若均未设截止日期，退回按开始日期新项目置顶
+                        return new Date(b.startDate) - new Date(a.startDate);
+                    });
                 });
 
+                // 升级版状态保护监控统计：同步计算“已结束”
                 const statusStatistics = computed(() => {
                     const cur = filteredTrials.value;
                     return { 
                         recruitingCount: cur.filter(t => t.status === '招募中').length, 
-                        fullCount: cur.filter(t => t.status === '已满额').length 
+                        fullCount: cur.filter(t => t.status === '已满额').length,
+                        endedCount: cur.filter(t => t.status === '已结束').length 
                     };
                 });
 
@@ -621,13 +700,17 @@
 
                 const openAddModal = () => {
                     isEditMode.value = false;
-                    manageForm.value = { name: '', protocol: '', company: '', status: '招募中', startDate: new Date().toISOString().split('T')[0], regimen: '', tagsString: '', description: '', inclusion: '', exclusion: '' };
+                    manageForm.value = { name: '', protocol: '', company: '', status: '招募中', startDate: new Date().toISOString().split('T')[0], endDate: '', totalSlots: 0, filledSlots: 0, regimen: '', tagsString: '', description: '', inclusion: '', exclusion: '' };
                     showManageModal.value = true;
                 };
 
                 const openEditModal = (trial) => {
                     isEditMode.value = true; currentEditId.value = trial.id;
-                    manageForm.value = { name: trial.name, protocol: trial.protocol, company: trial.company, status: trial.status, startDate: trial.startDate, regimen: trial.regimen || '', tagsString: trial.tags.join(' '), description: trial.description, inclusion: trial.inclusion, exclusion: trial.exclusion };
+                    manageForm.value = { 
+                        name: trial.name, protocol: trial.protocol, company: trial.company, status: trial.status, 
+                        startDate: trial.startDate, endDate: trial.endDate || '', totalSlots: trial.totalSlots || 0, filledSlots: trial.filledSlots || 0,
+                        regimen: trial.regimen || '', tagsString: trial.tags.join(' '), description: trial.description, inclusion: trial.inclusion, exclusion: trial.exclusion 
+                    };
                     showManageModal.value = true;
                 };
 
@@ -641,11 +724,11 @@
                     isLoading.value = true;
                     
                     let formattedDate = manageForm.value.startDate;
-                    if (formattedDate) {
-                        formattedDate = formattedDate.replace(/\//g, '-');
-                    } else {
-                        formattedDate = new Date().toISOString().split('T')[0];
-                    }
+                    if (formattedDate) formattedDate = formattedDate.replace(/\//g, '-');
+                    else formattedDate = new Date().toISOString().split('T')[0];
+
+                    let formattedEndDate = manageForm.value.endDate;
+                    if (formattedEndDate) formattedEndDate = formattedEndDate.replace(/\//g, '-');
                     
                     const payload = {
                         name: manageForm.value.name.trim(),
@@ -653,6 +736,9 @@
                         company: manageForm.value.company ? manageForm.value.company.trim() : '',
                         status: manageForm.value.status,
                         start_date: formattedDate,
+                        end_date: formattedEndDate || null,
+                        total_slots: Number(manageForm.value.totalSlots) || 0,
+                        filled_slots: Number(manageForm.value.filledSlots) || 0,
                         regimen: manageForm.value.regimen ? manageForm.value.regimen.trim() : '',
                         tags: parsedTags.join('|'), 
                         description: manageForm.value.description ? manageForm.value.description.trim() : '',
@@ -698,7 +784,7 @@
                     }
                 };
 
-                // --- 🌟 所有高级管理功能的补全与对齐（表格导入、图片OCR、批量删除等） 🌟 ---
+                // 核心功能接口对齐保留
                 const prepareFile = (file) => { if (file) { uploadedFileName.value = file.name; uploadedFileRaw.value = file; } };
                 const handleFileDrop = (e) => { isDragOver.value = false; prepareFile(e.dataTransfer.files[0]); };
                 const handleFileSelect = (e) => { prepareFile(e.target.files[0]); };
@@ -724,7 +810,7 @@
                                     name: String(row[0]).trim(),
                                     protocol: row[1] ? String(row[1]).trim() : '',   
                                     company: row[2] ? String(row[2]).trim() : '',
-                                    status: row[3] && String(row[3]).includes("满") ? "已满额" : "招募中",
+                                    status: row[3] && String(row[3]).includes("结束") ? "已结束" : (row[3] && String(row[3]).includes("满") ? "已满额" : "招募中"),
                                     start_date: row[4] ? String(row[4]).trim() : new Date().toISOString().split('T')[0],   
                                     regimen: row[5] ? String(row[5]).trim() : '',    
                                     tags: cleanTags.join('|'),                                         
@@ -756,7 +842,7 @@
                             let rawTags = cell[6] ? cell[6].split(/[|\s]+/) : [];
                             uploadBatch.push({
                                 name: cell[0].trim(), protocol: cell[1] ? cell[1].trim() : '',
-                                company: cell[2] ? cell[2].trim() : '', status: cell[3] && cell[3].includes("满") ? "已满额" : "招募中",
+                                company: cell[2] ? cell[2].trim() : '', status: cell[3] && cell[3].includes("结束") ? "已结束" : (cell[3] && cell[3].includes("满") ? "已满额" : "招募中"),
                                 start_date: cell[4] ? cell[4].trim() : new Date().toISOString().split('T')[0], regimen: cell[5] ? cell[5].trim() : '',
                                 tags: rawTags.filter(Boolean).join('|'), description: "",
                                 inclusion: cell[7] ? cell[7].trim() : "详见内容。", exclusion: cell[8] ? cell[8].trim() : "详见规范。"
@@ -818,9 +904,9 @@
 
                 const exportAllToExcel = () => {
                     if (mockTrials.value.length === 0) return alert("当前项目库无任何试验指征可供导出。");
-                    const matrixHeaders = [["课题研究官方全称", "项目编号", "申办公司", "入组招募状态", "开始入组时间", "用药方案", "核心特点标签", "入选标准", "排除标准"]];
+                    const matrixHeaders = [["课题研究官方全称", "项目编号", "申办公司", "入组招募状态", "开始入组时间", "预计结束时间", "总目标人数", "已入组人数", "用药方案", "核心特点标签", "入选标准", "排除标准"]];
                     const matrixRows = mockTrials.value.map(t => [
-                        t.name, t.protocol || '', t.company || '', t.status, t.startDate || '', t.regimen || '',
+                        t.name, t.protocol || '', t.company || '', t.status, t.startDate || '', t.endDate || '', t.totalSlots || 0, t.filledSlots || 0, t.regimen || '',
                         t.tags ? t.tags.join('|') : '', t.inclusion, t.exclusion
                     ]);
                     const worksheet = XLSX.utils.aoa_to_sheet(matrixHeaders.concat(matrixRows));
@@ -829,13 +915,11 @@
                     XLSX.writeFile(workbook, `哈肿呼吸科胸部肿瘤_最新全量数据大表.xlsx`);
                 };
 
-                watch(totalPages, (newVal) => { if (currentPage.value > newVal) currentPage.value = newVal; });
-
                 return {
                     quickKeywords, searchKeyword, hasFilteredSubmitted, filters, lastImportedIds, selectedTrialIds, isLoading,
                     isAdmin, showLoginModal, loginForm, loginError, filteredTrials, statusStatistics, paginatedTrials, currentPage, totalPages, selectedTrial, showManageModal, isEditMode, manageForm, isAllPageItemsSelected,
                     isFilterExpanded, hasActiveFilters, showImportModal, importType, isDragOver, uploadedFileName, uploadedFileRaw, textPasteInput, cameraImageName, uploadedImageRaw,
-                    formatDescription, checkIsRecentNew, handleFilterSubmit, handleFilterSubmitMobile, resetFilters, toggleKeyword, viewDetails, handleLogin, logout, openAddModal, openEditModal, saveTrial, deleteTrial, handleFileDrop, handleFileSelect, parseUploadedFile, parseTextPaste, handleImageSelect, parseImageOCR, undoLastImport, deleteSelectedTrials, toggleSelectAllOnPage, goToPage, exportAllToExcel
+                    formatDescription, checkIsRecentNew, handleFilterSubmit, handleFilterSubmitMobile, resetFilters, toggleKeyword, viewDetails, handleLogin, logout, openAddModal, openEditModal, saveTrial, deleteTrial, handleFileDrop, handleFileSelect, parseUploadedFile, parseTextPaste, handleImageSelect, parseImageOCR, undoLastImport, deleteSelectedTrials, toggleSelectAllOnPage, goToPage, exportAllToExcel, calculateRemaining, getRemainingDays
                 };
             }
         }).mount('#app');
