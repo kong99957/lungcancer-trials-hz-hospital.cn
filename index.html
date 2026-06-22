@@ -62,6 +62,15 @@
                     </select>
                 </div>
                 <div>
+                    <label class="block text-[11px] font-bold text-slate-600 mb-1">组织学类型</label>
+                    <select v-model="filters.histology" class="w-full p-2 border rounded-lg bg-white text-xs outline-none">
+                        <option value="">全部组织学</option>
+                        <option value="腺癌">鳞癌</option>
+                        <option value="鳞癌">腺癌</option>
+                        <option value="小细胞癌">小细胞癌</option>
+                    </select>
+                </div>
+                <div>
                     <label class="block text-[11px] font-bold text-slate-600 mb-1">基因突变状态</label>
                     <select v-model="filters.mutation" class="w-full p-2 border rounded-lg bg-white text-xs outline-none">
                         <option value="">全部基因状态</option>
@@ -72,21 +81,44 @@
                         <option value="MET14">MET14 (外显子跳突)</option>
                     </select>
                 </div>
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-600 mb-1">既往治疗线数</label>
+                    <select v-model="filters.treatmentLine" class="w-full p-2 border rounded-lg bg-white text-xs outline-none">
+                        <option value="">全部治疗线数</option>
+                        <option value="初治">初治 / 一线治疗</option>
+                        <option value="复治">经治 / 二线及以上</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-600 mb-1">PD-L1 表达水平</label>
+                    <select v-model="filters.pdl1" class="w-full p-2 border rounded-lg bg-white text-xs outline-none">
+                        <option value="">不限表达水平</option>
+                        <option value="PD-L1阴性">阴性 (<1%)</option>
+                        <option value="PD-L1低表达">低表达 (1-49%)</option>
+                        <option value="PD-L1高表达">高表达 (≥50%)</option>
+                    </select>
+                </div>
                 <button @click="handleFilterSubmit" class="w-full bg-slate-800 text-white font-bold py-2 rounded-lg text-xs hover:bg-slate-900 transition">开始筛选匹配</button>
             </section>
 
             <section class="lg:col-span-3 flex flex-col space-y-4">
                 <div class="bg-white p-4 border rounded-xl shadow-sm space-y-3">
+                    <div class="flex flex-wrap gap-4 items-center text-xs border-b pb-3">
+                        <span class="font-bold text-slate-500">试验全景状态统计:</span>
+                        <span class="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-md font-medium">满足当前筛选条件：{{ filteredTrials.length }} 项</span>
+                        <span class="bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-md font-medium">招募中：{{ statusStatistics.recruitingCount }} 项</span>
+                        <span class="bg-slate-100 text-slate-600 px-2.5 py-1 rounded-md font-medium">已满额：{{ statusStatistics.fullCount }} 项</span>
+                    </div>
                     <div class="flex flex-wrap gap-2 items-center">
                         <span class="text-[11px] font-bold text-slate-500 mr-1"><i class="fa-solid fa-magnifying-glass text-blue-500"></i> 快速检索:</span>
-                        <input type="text" v-model="searchKeyword" placeholder="搜索研究信息，如药物、靶点" class="text-xs p-1.5 border rounded-lg ml-auto w-full sm:w-auto outline-none" />
+                        <button v-for="kw in quickKeywords" :key="kw" @click="toggleKeyword(kw)" :class="searchKeyword === kw ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-100 text-slate-600 border-slate-200/60 hover:bg-slate-200/60'" class="text-[10px] px-2.5 py-1 rounded-md border transition font-medium">{{ kw }}</button>
+                        <input type="text" v-model="searchKeyword" placeholder="自定义输入搜索药物、靶点" class="text-xs p-1.5 border rounded-lg ml-auto w-full sm:w-auto outline-none" />
                     </div>
                 </div>
 
                 <div v-if="isAdmin" class="bg-slate-100 p-3 rounded-xl border flex flex-wrap items-center justify-between gap-3 shadow-inner">
                     <button @click="deleteSelectedTrials" :disabled="selectedTrialIds.length === 0" class="text-[11px] bg-rose-600 text-white font-bold py-1.5 px-3.5 rounded-lg disabled:opacity-40">批量删除当前选中 (已选 {{ selectedTrialIds.length }} 项)</button>
                     <div class="flex gap-2">
-                        <button @click="exportAllToExcel" class="bg-slate-800 text-white text-[11px] font-bold py-1.5 px-3 rounded-lg"><i class="fa-solid fa-file-arrow-down text-emerald-400 mr-1"></i>一键导出表格</button>
                         <button @click="showImportModal = true" class="bg-blue-600 text-white text-[11px] font-bold py-1.5 px-3.5 rounded-lg">智能批量导入大表</button>
                         <button @click="openAddModal" class="bg-emerald-600 text-white text-[11px] font-bold py-1.5 px-3 rounded-lg">手动发布单条研究</button>
                     </div>
@@ -99,7 +131,7 @@
                             <span>哈肿云端数据库对齐中...</span>
                         </div>
                     </div>
-                    <div v-if="paginatedTrials.length === 0 && !isLoading" class="text-center py-16 text-slate-400 border border-dashed bg-white rounded-2xl">暂无符合特征的临床研究项目</div>
+                    <div v-if="paginatedTrials.length === 0 && !isLoading" class="text-center py-16 text-slate-400 border border-dashed bg-white rounded-2xl">暂无符合当前筛选特征的临床研究项目</div>
                     
                     <div v-for="trial in paginatedTrials" :key="trial.id" class="border rounded-2xl p-5 bg-white shadow-sm hover:shadow-md transition relative flex flex-col justify-between">
                         <div v-if="isAdmin" class="absolute top-4 left-4 z-10">
@@ -108,22 +140,31 @@
                         <div :class="{'pl-6': isAdmin}">
                             <div class="flex justify-between items-start gap-4 mb-2">
                                 <h4 class="font-bold text-slate-900 leading-snug">{{ trial.name }}</h4>
-                                <span class="bg-emerald-50 text-emerald-700 border text-[10px] px-2.5 py-0.5 rounded-md font-bold">{{ trial.status }}</span>
+                                <span :class="trial.status === '招募中' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-500 border-slate-200'" class="border text-[10px] px-2.5 py-0.5 rounded-md font-bold">{{ trial.status }}</span>
                             </div>
-                            <div class="text-[11px] text-slate-500 flex flex-wrap gap-x-4 mb-2 border-b pb-2">
+                            <div class="text-[11px] text-slate-500 flex flex-wrap gap-x-4 gap-y-1 mb-2 border-b pb-2">
                                 <span><strong>项目编号：</strong>{{ trial.protocol || '--' }}</span>
                                 <span><strong>药企公司：</strong>{{ trial.company || '--' }}</span>
-                                <span><strong>方案：</strong>{{ trial.regimen || '--' }}</span>
+                                <span><strong>用药方案：</strong>{{ trial.regimen || '--' }}</span>
+                                <span><strong>发布日期：</strong>{{ trial.startDate || '--' }}</span>
                             </div>
-                            <p class="text-xs text-slate-600 mb-3 bg-slate-50 p-2.5 rounded-xl border"><strong>项目简介：</strong>{{ trial.description || '暂无相关临床研究项目简介。' }}</p>
+                            <div class="flex flex-wrap gap-1 mb-3">
+                                <span v-for="tag in trial.tags" :key="tag" class="bg-blue-50 text-blue-600 text-[10px] px-2 py-0.5 rounded-md font-medium border border-blue-100/50"># {{ tag }}</span>
+                            </div>
                         </div>
                         <div class="flex justify-between items-center border-t pt-3 mt-2" :class="{'pl-6': isAdmin}">
-                            <button @click="viewDetails(trial)" class="bg-blue-50 hover:bg-blue-100 border text-blue-700 font-bold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition">查看入排标准详情</button>
+                            <button @click="viewDetails(trial)" class="bg-blue-50 hover:bg-blue-100 border border-blue-200/60 text-blue-700 font-bold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition">查看入排标准详情</button>
                             <div v-if="isAdmin" class="flex gap-1.5">
                                 <button @click="openEditModal(trial)" class="text-[11px] bg-slate-100 border px-3 py-1.5 rounded-xl">编辑</button>
-                                <button @click="deleteTrial(trial.id)" class="text-[11px] bg-rose-50 text-rose-600 border px-3 py-1.5 rounded-xl">删除</button>
+                                <button @click="deleteTrial(trial.id)" class="text-[11px] bg-rose-50 text-rose-600 border border-rose-200/60 px-3 py-1.5 rounded-xl">删除</button>
                             </div>
                         </div>
+                    </div>
+
+                    <div v-if="totalPages > 1" class="flex justify-center items-center gap-2 pt-2">
+                        <button @click="goToPage(currentPage - 1)" :disabled="currentPage === 1" class="px-3 py-1 border rounded-lg text-xs bg-white disabled:opacity-40">上一页</button>
+                        <span class="text-xs text-slate-500">第 {{ currentPage }} / {{ totalPages }} 页</span>
+                        <button @click="goToPage(currentPage + 1)" :disabled="currentPage === totalPages" class="px-3 py-1 border rounded-lg text-xs bg-white disabled:opacity-40">下一页</button>
                     </div>
                 </div>
             </section>
@@ -135,28 +176,31 @@
                     <h3 class="text-sm font-bold text-slate-900"><i class="fa-solid fa-arrow-up-from-bracket text-blue-600 mr-1"></i>批量导入控制台</h3>
                     <button @click="showImportModal = false" class="text-slate-400 text-xl font-bold">&times;</button>
                 </div>
-                <div @dragover.prevent="isDragOver = true" @dragleave="isDragOver = false" @drop.prevent="handleFileDrop" :class="{'drag-over': isDragOver}" class="border-2 border-dashed rounded-xl p-8 text-center bg-slate-50 relative cursor-pointer">
+                <div @dragover.prevent="isDragOver = true" @dragleave="isDragOver = false" @drop.prevent="handleFileDrop" :class="{'border-blue-500 bg-blue-50/30': isDragOver}" class="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center bg-slate-50 relative cursor-pointer transition">
                     <input type="file" accept=".xlsx,.xls" @change="handleFileSelect" class="absolute inset-0 opacity-0 cursor-pointer" />
-                    <p class="text-xs font-semibold text-slate-500" v-if="!uploadedFileRaw">将临床研究 Excel 大表拖入或点击上传</p>
-                    <p class="text-xs font-bold text-emerald-600" v-else>已成功载入大表: {{ uploadedFileName }}</p>
+                    <p class="text-xs font-semibold text-slate-500" v-if="!uploadedFileRaw">将临床研究 Excel 大表 (.xlsx) 拖入此区域或点击上传</p>
+                    <p class="text-xs font-bold text-emerald-600" v-else><i class="fa-solid fa-file-excel mr-1"></i>已成功载入大表: {{ uploadedFileName }}</p>
                 </div>
-                <button @click="parseUploadedFile" :disabled="!uploadedFileRaw" class="w-full bg-blue-600 text-white font-bold py-2.5 rounded-xl text-xs shadow mt-4">启动全能引擎对齐并发布上云</button>
+                <div class="text-[10px] text-slate-400 mt-2 leading-relaxed">
+                    💡 Excel 表格列名对应顺序：A列(课题名称)、B列(项目编号)、C列(申办方)、D列(招募状态)、E列(入组时间)、F列(用药方案)、G列(特征标签，空格隔开)、H列(入选标准)、I列(排除标准)
+                </div>
+                <button @click="parseUploadedFile" :disabled="!uploadedFileRaw" class="w-full bg-blue-600 text-white font-bold py-2.5 rounded-xl text-xs shadow mt-4 disabled:opacity-40">启动全能引擎对齐并发布上云</button>
             </div>
         </div>
 
         <div v-if="selectedTrial" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
             <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col">
                 <div class="p-4 border-b bg-slate-50 flex justify-between items-start rounded-t-2xl">
-                    <h3 class="text-base font-bold text-slate-900">{{ selectedTrial.name }}</h3>
+                    <h3 class="text-sm font-bold text-slate-900 leading-snug">{{ selectedTrial.name }}</h3>
                     <button @click="selectedTrial = null" class="text-slate-400 text-2xl font-bold">&times;</button>
                 </div>
                 <div class="p-6 overflow-y-auto space-y-4 text-xs custom-scrollbar">
                     <div class="bg-emerald-50 border border-emerald-200 p-4 rounded-xl">
-                        <h4 class="font-bold text-emerald-900 mb-2"><i class="fa-solid fa-square-check mr-1"></i>入选标准</h4>
+                        <h4 class="font-bold text-emerald-900 mb-2 flex items-center gap-1"><i class="fa-solid fa-square-check text-emerald-600"></i>入选标准 (Inclusion Criteria)</h4>
                         <p class="whitespace-pre-line text-emerald-950 leading-relaxed font-medium">{{ selectedTrial.inclusion }}</p>
                     </div>
                     <div class="bg-rose-50 border border-rose-200 p-4 rounded-xl">
-                        <h4 class="font-bold text-rose-900 mb-2"><i class="fa-solid fa-triangle-exclamation mr-1"></i>排除标准</h4>
+                        <h4 class="font-bold text-rose-900 mb-2 flex items-center gap-1"><i class="fa-solid fa-triangle-exclamation text-rose-600"></i>排除标准 (Exclusion Criteria)</h4>
                         <p class="whitespace-pre-line text-rose-950 leading-relaxed font-medium">{{ selectedTrial.exclusion }}</p>
                     </div>
                 </div>
@@ -165,7 +209,7 @@
 
         <div v-if="showManageModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
             <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
-                <div class="p-4 border-b bg-slate-50 flex justify-between items-center rounded-t-2xl"><h3 class="text-xs font-bold text-slate-800">发布全新试验指征</h3><button @click="showManageModal = false" class="text-slate-400 text-xl font-bold">&times;</button></div>
+                <div class="p-4 border-b bg-slate-50 flex justify-between items-center rounded-t-2xl"><h3 class="text-xs font-bold text-slate-800">{{ isEditMode ? '编辑临床研究参数' : '发布全新试验指征' }}</h3><button @click="showManageModal = false" class="text-slate-400 text-xl font-bold">&times;</button></div>
                 <div class="p-4 overflow-y-auto space-y-3 text-xs grid grid-cols-1 md:grid-cols-2 gap-3 custom-scrollbar">
                     <div class="md:col-span-2"><label class="block font-bold text-slate-600 mb-1">课题研究官方全称 *</label><input type="text" v-model="manageForm.name" class="w-full p-2 border rounded-lg outline-none text-slate-900 font-medium"></div>
                     <div><label class="block font-bold text-slate-600 mb-1">项目编号</label><input type="text" v-model="manageForm.protocol" class="w-full p-2 border rounded-lg"></div>
@@ -173,7 +217,7 @@
                     <div><label class="block font-bold text-slate-600 mb-1">用药方案</label><input type="text" v-model="manageForm.regimen" class="w-full p-2 border rounded-lg"></div>
                     <div><label class="block font-bold text-slate-600 mb-1">入组招募状态</label><select v-model="manageForm.status" class="w-full p-2 border rounded-lg bg-white"><option value="招募中">招募中</option><option value="已满额">已满额</option></select></div>
                     <div><label class="block font-bold text-slate-600 mb-1">入组时间</label><input type="date" v-model="manageForm.startDate" class="w-full p-2 border rounded-lg"></div>
-                    <div class="md:col-span-2"><label class="block font-bold text-slate-600 mb-1">核心特点特征标签（空格隔开） *</label><input type="text" v-model="manageForm.tagsString" class="w-full p-2 border rounded-lg" placeholder="例如：非小细胞肺癌 鳞癌 EGFR"></div>
+                    <div class="md:col-span-2"><label class="block font-bold text-slate-600 mb-1">多维特征检索标签（非常关键，请用空格隔开） *</label><input type="text" v-model="manageForm.tagsString" class="w-full p-2 border rounded-lg" placeholder="例如：非小细胞肺癌 腺癌 EGFR 初治 PD-L1高表达"></div>
                     <div class="md:col-span-2"><label class="block font-bold text-emerald-700 mb-1">入选标准 *</label><textarea v-model="manageForm.inclusion" rows="3" class="w-full p-2 border border-emerald-200 bg-emerald-50/20 rounded-lg outline-none"></textarea></div>
                     <div class="md:col-span-2"><label class="block font-bold text-rose-700 mb-1">排除标准 *</label><textarea v-model="manageForm.exclusion" rows="3" class="w-full p-2 border border-rose-200 bg-rose-50/20 rounded-lg outline-none"></textarea></div>
                 </div>
@@ -196,14 +240,14 @@
             </div>
         </div>
 
-        <footer class="bg-slate-900 border-t border-slate-800 text-slate-500 text-center p-4 text-[10px] mt-auto">哈肿临床试验研究项目综合管理系统</footer>
+        <footer class="bg-slate-900 border-t border-slate-800 text-slate-500 text-center p-4 text-[10px] mt-auto">哈肿呼吸科胸部肿瘤临床试验研究项目综合管理系统</footer>
     </div>
 
     <script>
-        const { createApp, ref, computed, watch, onMounted } = Vue;
+        const { createApp, ref, computed, onMounted } = Vue;
 
         const SUPABASE_URL = "https://tqdmcdcvknqygwkpemll.supabase.co";
-        // 🔒 已经为你成功换上了刚找到的可用公开密钥
+        // 🔑 已经为你完美替换上可写入、有开放权限的连接钥匙
         const SUPABASE_KEY = "sb_publishable_td6jG96VyiWhzilHVzjGng_9fQIc6vs";
         
         let globalSupabase = null;
@@ -215,11 +259,9 @@
 
         createApp({
             setup() {
-                const quickKeywords = ['非小细胞肺癌', '局限期小细胞肺癌', '广泛期小细胞肺癌', '腺癌', '鳞癌', '实体瘤', 'EGFR', 'KRAS'];
+                const quickKeywords = ['非小细胞肺癌', '腺癌', '鳞癌', 'EGFR', 'ALK', '招募中'];
                 const searchKeyword = ref('');
-                const hasFilteredSubmitted = ref(false);
                 const showImportModal = ref(false);
-                const importType = ref('excel'); 
                 const isDragOver = ref(false);
                 const uploadedFileName = ref('');
                 const uploadedFileRaw = ref(null); 
@@ -274,16 +316,16 @@
                                 if (!row || row.length === 0 || !row[0]) return;
                                 let rawTags = row[6] ? String(row[6]).split(/[\s|，,、\t/]+/) : [];
                                 uploadBatch.push({
-                                    name: String(row[0]).trim(), protocol: row[1] ? String(row[1]).trim() : '', company: row[2] ? String(row[2]).trim() : '', status: row[3] && String(row[3]).includes("满") ? "已满额" : "招募中", start_date: row[4] ? String(row[4]).trim() : '', regimen: row[5] ? String(row[5]).trim() : '', tags: rawTags.filter(Boolean).join('|'), description: String(row[0]).trim(), inclusion: row[7] ? String(row[7]).trim() : '详见细节', exclusion: row[8] ? String(row[8]).trim() : '详见细节'
+                                    name: String(row[0]).trim(), protocol: row[1] ? String(row[1]).trim() : '', company: row[2] ? String(row[2]).trim() : '', status: row[3] && String(row[3]).includes("满") ? "已满额" : "招募中", start_date: row[4] ? String(row[4]).trim() : '', regimen: row[5] ? String(row[5]).trim() : '', tags: rawTags.filter(Boolean).join('|'), description: String(row[0]).trim(), inclusion: row[7] ? String(row[7]).trim() : '详见随航指南细节', exclusion: row[8] ? String(row[8]).trim() : '详见随航指南细节'
                                 });
                             });
                             isLoading.value = true;
                             const { error } = await globalSupabase.from('trials').insert(uploadBatch);
                             if (error) throw error;
                             await fetchTrialsFromCloud();
-                            alert("🎉 恭喜！大表全量数据对齐并同步至云端！");
+                            alert("🎉 恭喜！大表全量数据已成功对齐并同步至哈肿云端！");
                             showImportModal.value = false; uploadedFileRaw.value = null;
-                        } catch (err) { alert("同步失败，请检查数据库权限或表结构配置。"); } finally { isLoading.value = false; }
+                        } catch (err) { alert("同步失败，请检查数据库连接及表结构规则。"); } finally { isLoading.value = false; }
                     };
                     reader.readAsArrayBuffer(file);
                 };
@@ -307,8 +349,8 @@
                         if (error) throw error;
                         showManageModal.value = false;
                         await fetchTrialsFromCloud();
-                        alert("🎉 恭喜！数据已成功发布上云并永久同步！");
-                    } catch (err) { alert("同步失败，请确保数据库 trials 表的 RLS 写入权限已开启。"); } finally { isLoading.value = false; }
+                        alert("🎉 恭喜！数据已成功发布至哈肿云端！");
+                    } catch (err) { alert("同步写入失败，请检查约束模式。"); } finally { isLoading.value = false; }
                 };
 
                 const deleteTrial = async (id) => {
@@ -328,11 +370,10 @@
                     }
                 };
 
-                const resetFilters = () => { filters.value = { diseaseType: '', histology: '', mutation: '', treatmentLine: '', pdl1: '' }; searchKeyword.value = ''; hasFilteredSubmitted.value = false; };
+                const resetFilters = () => { filters.value = { diseaseType: '', histology: '', mutation: '', treatmentLine: '', pdl1: '' }; searchKeyword.value = ''; };
                 const toggleKeyword = (kw) => { searchKeyword.value = (searchKeyword.value === kw) ? '' : kw; };
-                const handleFilterSubmit = () => { hasFilteredSubmitted.value = true; };
                 const viewDetails = (trial) => { selectedTrial.value = trial; };
-                const handleLogin = () => { if (loginForm.value.username === 'hznl' && loginForm.value.password === 'Y12345') { isAdmin.value = true; showLoginModal = false; } else { loginError.value = '授权失败。'; } };
+                const handleLogin = () => { if (loginForm.value.username === 'hznl' && loginForm.value.password === 'Y12345') { isAdmin.value = true; showLoginModal.value = false; } else { loginError.value = '管理密码或凭证不正确。'; } };
                 const logout = () => { isAdmin.value = false; };
                 const openAddModal = () => { isEditMode.value = false; manageForm.value = { name: '', protocol: '', company: '', status: '招募中', startDate: new Date().toISOString().split('T')[0], regimen: '', tagsString: '', description: '', inclusion: '', exclusion: '' }; showManageModal.value = true; };
                 const openEditModal = (trial) => { isEditMode.value = true; currentEditId.value = trial.id; manageForm.value = { name: trial.name, protocol: trial.protocol, company: trial.company, status: trial.status, startDate: trial.startDate, regimen: trial.regimen, tagsString: trial.tags.join(' '), description: trial.description, inclusion: trial.inclusion, exclusion: trial.exclusion }; showManageModal.value = true; };
@@ -341,7 +382,10 @@
                 const filteredTrials = computed(() => {
                     let list = [...mockTrials.value];
                     if (filters.value.diseaseType) list = list.filter(t => t.tags.includes(filters.value.diseaseType));
+                    if (filters.value.histology) list = list.filter(t => t.tags.includes(filters.value.histology));
                     if (filters.value.mutation) list = list.filter(t => t.tags.includes(filters.value.mutation));
+                    if (filters.value.treatmentLine) list = list.filter(t => t.tags.includes(filters.value.treatmentLine));
+                    if (filters.value.pdl1) list = list.filter(t => t.tags.includes(filters.value.pdl1));
                     if (searchKeyword.value.trim()) {
                         const kw = searchKeyword.value.trim().toLowerCase();
                         list = list.filter(t => t.name.toLowerCase().includes(kw) || t.protocol.toLowerCase().includes(kw) || t.tags.some(tag => tag.toLowerCase().includes(kw)));
@@ -352,11 +396,10 @@
                 const statusStatistics = computed(() => ({ recruitingCount: filteredTrials.value.filter(t => t.status === '招募中').length, fullCount: filteredTrials.value.filter(t => t.status === '已满额').length }));
                 const totalPages = computed(() => Math.ceil(filteredTrials.value.length / itemsPerPage) || 1);
                 const paginatedTrials = computed(() => filteredTrials.value.slice((currentPage.value - 1) * itemsPerPage, currentPage.value * itemsPerPage));
-                const isAllPageItemsSelected = computed(() => paginatedTrials.value.length && paginatedTrials.value.every(t => selectedTrialIds.value.includes(t.id)));
 
                 return {
-                    quickKeywords, searchKeyword, hasFilteredSubmitted, filters, showImportModal, importType, isDragOver, uploadedFileName, uploadedFileRaw, selectedTrialIds, isLoading, isAdmin, showLoginModal, loginForm, loginError, filteredTrials, statusStatistics, paginatedTrials, currentPage, totalPages, selectedTrial, showManageModal, isEditMode, manageForm, isAllPageItemsSelected,
-                    resetFilters, toggleKeyword, handleFilterSubmit, viewDetails, handleLogin, logout, openAddModal, openEditModal, saveTrial, deleteTrial, deleteSelectedTrials, handleFileDrop, handleFileSelect, parseUploadedFile, goToPage, exportAllToExcel: () => {}
+                    quickKeywords, searchKeyword, filters, showImportModal, isDragOver, uploadedFileName, uploadedFileRaw, selectedTrialIds, isLoading, isAdmin, showLoginModal, loginForm, loginError, filteredTrials, statusStatistics, paginatedTrials, currentPage, totalPages, selectedTrial, showManageModal, isEditMode, manageForm,
+                    resetFilters, toggleKeyword, viewDetails, handleLogin, logout, openAddModal, openEditModal, saveTrial, deleteTrial, deleteSelectedTrials, handleFileDrop, handleFileSelect, parseUploadedFile, goToPage
                 };
             }
         }).mount('#app');
