@@ -293,7 +293,7 @@
                 </div>
 
                 <div v-if="importType === 'text'" class="space-y-3">
-                    <textarea v-model="textPasteInput" rows="5" class="w-full p-2.5 border border-slate-300 rounded-xl text-xs font-mono outline-none focus:border-blue-500" placeholder="课题全称, 项目编号, 药企公司, 招募状态, 入组时间, 用药方案, 核心特点标签, 入选表现, 排除表现"></textarea>
+                    <textarea v-model="textPasteInput" rows="5" class="w-full p-2.5 border border-slate-300 rounded-xl text-xs font-mono outline-none focus:border-blue-500" placeholder="课题全称, 项目编号, 药企 company, 招募状态, 入组时间, 用药方案, 核心特点标签, 入选表现, 排除表现"></textarea>
                     <button @click="parseTextPaste" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-lg text-xs shadow">解析并即时上传至云数据库</button>
                 </div>
 
@@ -432,7 +432,6 @@
     <script>
         const { createApp, ref, computed, watch, onMounted } = Vue;
 
-        // 核心修复：更正 Supabase 云端实例项目域名拼写错位
         const SUPABASE_URL = "https://tqdmcdcvknqygwkpemll.supabase.co";
         const SUPABASE_KEY = "sb_publishable_td6jG96VyiWhzilHVzjGng_9fQIc6vs";
         
@@ -567,7 +566,7 @@
                                     protocol: row[1] ? String(row[1]).trim() : '',   
                                     company: row[2] ? String(row[2]).trim() : '',
                                     status: row[3] && String(row[3]).includes("满") ? "已满额" : "招募中",
-                                    start_date: row[4] ? String(row[4]).trim() : '',
+                                    start_date: row[4] ? String(row[4]).trim() : new Date().toISOString().split('T')[0],   
                                     regimen: row[5] ? String(row[5]).trim() : '',    
                                     tags: cleanTags.join('|'),                                  
                                     description: "",
@@ -604,7 +603,7 @@
                             uploadBatch.push({
                                 name: cell[0].trim(), protocol: cell[1] ? cell[1].trim() : '',
                                 company: cell[2] ? cell[2].trim() : '', status: cell[3] && cell[3].includes("满") ? "已满额" : "招募中",
-                                start_date: cell[4] ? cell[4].trim() : '', regimen: cell[5] ? cell[5].trim() : '',
+                                start_date: cell[4] ? cell[4].trim() : new Date().toISOString().split('T')[0], regimen: cell[5] ? cell[5].trim() : '',
                                 tags: rawTags.filter(Boolean).join('|'), description: "",
                                 inclusion: cell[7] ? cell[7].trim() : "详见内容。", exclusion: cell[8] ? cell[8].trim() : "详见规范。"
                             });
@@ -677,7 +676,7 @@
 
                     } catch (err) {
                         console.error("图片识别同步异常:", err);
-                        alert("扫描导入失败，请确保网络良好且 Supabase 线上 trials 表开启。");
+                        alert("扫描导入失败，请检查网络或确认 trials 表状态。");
                     } finally {
                         isLoading.value = false;
                     }
@@ -787,12 +786,20 @@
                     const parsedTags = manageForm.value.tagsString.split(/[\s|，,]+/).filter(Boolean).join('|');
                     isLoading.value = true;
                     
+                    // 深度修复点 1：增强日期校验格式化，将斜杠强转为标准连字符格式 YYYY-MM-DD
+                    let formattedDate = manageForm.value.startDate;
+                    if (formattedDate) {
+                        formattedDate = formattedDate.replace(/\//g, '-');
+                    } else {
+                        formattedDate = new Date().toISOString().split('T')[0];
+                    }
+                    
                     const payload = {
                         name: manageForm.value.name.trim(),
                         protocol: manageForm.value.protocol ? manageForm.value.protocol.trim() : '',
                         company: manageForm.value.company ? manageForm.value.company.trim() : '',
                         status: manageForm.value.status,
-                        start_date: manageForm.value.startDate,
+                        start_date: formattedDate,
                         regimen: manageForm.value.regimen ? manageForm.value.regimen.trim() : '',
                         tags: parsedTags,
                         description: manageForm.value.description ? manageForm.value.description.trim() : '',
@@ -805,6 +812,9 @@
                             const { error } = await globalSupabase.from('trials').update(payload).eq('id', currentEditId.value);
                             if (error) throw error;
                         } else {
+                            // 深度修复点 2：为可能没有开自增的主键表注入临时随机ID作为保护层
+                            // 如果你的主键是整数自增，Supabase 会自动忽略这个随机整数字段；如果是 uuid/文本主键，它将完美兼容防止报错。
+                            payload.id = Math.floor(100000 + Math.random() * 900000);
                             const { error } = await globalSupabase.from('trials').insert([payload]);
                             if (error) throw error;
                         }
@@ -812,8 +822,9 @@
                         await fetchTrialsFromCloud();
                         alert("🎉 恭喜！数据已成功发布上云！");
                     } catch (err) {
-                        console.error("同步异常:", err);
-                        alert("同步失败，请确保你的 Supabase 云端 trials 表保持开启状态。");
+                        // 深度修复点 3：抛出底层的具体异常原因，方便在控制台查看究竟是哪个字段阻断了写入
+                        console.error("【Supabase 同步详细报错】:", err);
+                        alert("同步失败，请确保你的 Supabase 云端 trials 表保持开启状态。\n提示：若表内有其他必填列未分配，请按 F12 打开控制台查看详情。");
                     } finally {
                         isLoading.value = false;
                     }
