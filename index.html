@@ -132,16 +132,6 @@
 
             <section class="lg:col-span-3 flex flex-col space-y-4">
                 
-                <div v-if="lastImportedIds.length > 0 && isAdmin" class="bg-amber-50 border-2 border-amber-300 rounded-xl p-3 flex justify-between items-center shadow-sm">
-                    <div class="flex items-center space-x-2 text-xs text-amber-800">
-                        <i class="fa-solid fa-triangle-exclamation text-amber-600 text-sm animate-pulse"></i>
-                        <span>检测到刚刚执行了文件批量导入。若有乱码、列对齐错误，可点击一键撤销回滚。</span>
-                    </div>
-                    <button @click="undoLastImport" class="bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-bold py-1 px-3 rounded-lg flex items-center gap-1 transition">
-                        <i class="fa-solid fa-arrow-rotate-left"></i> 撤销刚才上传的文件
-                    </button>
-                </div>
-
                 <div class="bg-white p-4 border border-slate-200 rounded-xl shadow-sm space-y-3">
                     <div class="flex flex-wrap gap-2 items-center">
                         <span class="text-[11px] font-bold text-slate-500 mr-1"><i class="fa-solid fa-magnifying-glass text-blue-500"></i> 快速检索:</span>
@@ -152,9 +142,12 @@
                     </div>
 
                     <div class="flex items-center space-x-4 pt-2 border-t border-slate-100">
-                        <span class="text-[10px] font-bold text-slate-400 tracking-wider uppercase flex items-center gap-1"><i class="fa-solid fa-cloud-arrow-up text-blue-500"></i> 数据防护监控:</span>
+                        <span class="text-[10px] font-bold text-slate-400 tracking-wider uppercase flex items-center gap-1"><i class="fa-solid fa-cloud-arrow-up text-blue-500"></i> 云端状态监控:</span>
                         <div class="bg-emerald-50 border border-emerald-200 text-emerald-800 px-2.5 py-1 rounded-lg text-[11px]">
-                            有效在研项目总数: <strong class="font-bold text-emerald-700 font-mono text-xs">{{ filteredTrials.length }}</strong> 项
+                            招募中项目: <strong class="font-bold text-emerald-700 font-mono text-xs">{{ statusStatistics.recruitingCount }}</strong> 项
+                        </div>
+                        <div class="bg-amber-50 border border-amber-200 text-amber-800 px-2.5 py-1 rounded-lg text-[11px]">
+                            已满额项目: <strong class="font-bold text-amber-700 font-mono text-xs">{{ statusStatistics.fullCount }}</strong> 项
                         </div>
                     </div>
                 </div>
@@ -195,7 +188,7 @@
                         </div>
                     </div>
 
-                    <div v-if="paginatedTrials.length === 0 && !isLoading" class="text-center py-16 text-slate-400 border border-dashed border-slate-300 bg-white rounded-2xl shadow-sm">
+                    <div v-if="mockTrials.length === 0 && !isLoading" class="text-center py-16 text-slate-400 border border-dashed border-slate-300 bg-white rounded-2xl shadow-sm">
                         <i class="fa-regular fa-folder-open text-4xl mb-2 text-slate-300"></i>
                         <p class="text-xs">未筛选到符合受试者临床体征特征的临床试验</p>
                     </div>
@@ -395,7 +388,7 @@
                 </div>
                 <div class="p-3 bg-slate-50 border-t flex justify-end gap-2 rounded-b-2xl">
                     <button @click="showManageModal = false" class="bg-slate-300 px-4 py-2 rounded-lg text-xs">取消</button>
-                    <button @click="saveTrial" class="bg-blue-600 text-white font-bold px-5 py-2 rounded-lg text-xs hover:bg-blue-700 transition">确认发布</button>
+                    <button @click="saveTrial" class="bg-blue-600 text-white font-bold px-5 py-2 rounded-lg text-xs hover:bg-blue-700 transition">确认发布至云端</button>
                 </div>
             </div>
         </div>
@@ -469,12 +462,7 @@
                 const loginForm = ref({ username: '', password: '' });
                 const loginError = ref('');
 
-                // 核心重构：多数据源无缝切分
-                const cloudTrials = ref([]);  
-                const localTrials = ref([]);  
-                const mockTrials = computed(() => {
-                    return [...cloudTrials.value, ...localTrials.value];
-                });
+                const mockTrials = ref([]);  
 
                 const currentPage = ref(1);
                 const itemsPerPage = 5;
@@ -488,19 +476,7 @@
                     regimen: '', tagsString: '', description: '', inclusion: '', exclusion: ''
                 });
 
-                const loadLocalTrialsData = () => {
-                    try {
-                        const localData = localStorage.getItem('hz_local_trials');
-                        if (localData) {
-                            localTrials.value = JSON.parse(localData);
-                        }
-                    } catch (e) {
-                        console.error(e);
-                    }
-                };
-
                 const fetchTrialsFromCloud = async () => {
-                    loadLocalTrialsData();
                     if (!globalSupabase) {
                         isLoading.value = false;
                         return;
@@ -509,7 +485,7 @@
                     try {
                         const { data, error } = await globalSupabase.from('trials').select('*');
                         if (!error && data) {
-                            cloudTrials.value = data.map(item => ({
+                            mockTrials.value = data.map(item => ({
                                 id: item.id,
                                 name: item.name || '',
                                 protocol: item.protocol || '',
@@ -555,7 +531,7 @@
                 const handleFileSelect = (e) => { prepareFile(e.target.files[0]); };
 
                 const parseUploadedFile = () => {
-                    if (!uploadedFileRaw.value) return;
+                    if (!uploadedFileRaw.value || !globalSupabase) return;
                     const file = uploadedFileRaw.value;
                     const reader = new FileReader();
 
@@ -575,37 +551,41 @@
                                 let cleanTags = rawTags.map(t => t.trim()).filter(Boolean);
 
                                 uploadBatch.push({
-                                    id: "LOCAL-" + Math.floor(Math.random() * 1000000),
                                     name: String(row[0]).trim(),
                                     protocol: row[1] ? String(row[1]).trim() : '',   
                                     company: row[2] ? String(row[2]).trim() : '',
                                     status: row[3] && String(row[3]).includes("满") ? "已满额" : "招募中",
-                                    startDate: row[4] ? String(row[4]).trim() : new Date().toISOString().split('T')[0],   
+                                    start_date: row[4] ? String(row[4]).trim() : new Date().toISOString().split('T')[0],   
                                     regimen: row[5] ? String(row[5]).trim() : '',    
-                                    tags: cleanTags,                                  
+                                    tags: cleanTags.join('|'),                                  
                                     description: "",
                                     inclusion: row[7] ? String(row[7]).trim() : "未添加具体入选适应指征。", 
                                     exclusion: row[8] ? String(row[8]).trim() : "未添加具体排除受试禁忌。"
                                 });
                             });
 
-                            // 默认进入浏览器安全沙盒模型，完全免除写保护阻断
-                            localTrials.value = [...localTrials.value, ...uploadBatch];
-                            localStorage.setItem('hz_local_trials', JSON.stringify(localTrials.value));
-                            alert("💡 表格导入成功！项目数据已安全载入本地工作台，可立即完成匹配、查阅与一键导出。");
-                            showImportModal.value = false;
+                            isLoading.value = true;
+                            const { error } = await globalSupabase.from('trials').insert(uploadBatch);
+                            if (error) {
+                                alert("【大表同步失败】" + error.message);
+                            } else {
+                                await fetchTrialsFromCloud(); 
+                                alert(`🎉 成功！大表表格数据已全部无阻碍实时导入并完成云端对齐！`);
+                                showImportModal.value = false;
+                            }
                             clearUploadStates();
-                            currentPage.value = 1;
                         } catch (err) {
                             console.error(err);
-                            alert("大表导入失败，请检查数据格式对齐。");
+                            alert("解析异常，请检查数据格式。");
+                        } finally {
+                            isLoading.value = false;
                         }
                     };
                     reader.readAsArrayBuffer(file);
                 };
 
                 const parseTextPaste = async () => {
-                    if (!textPasteInput.value.trim()) return;
+                    if (!textPasteInput.value.trim() || !globalSupabase) return;
                     const lines = textPasteInput.value.split('\n');
                     let uploadBatch = [];
                     lines.forEach(line => {
@@ -613,19 +593,24 @@
                         if (cell.length >= 1 && cell[0].trim()) {
                             let rawTags = cell[6] ? cell[6].split(/[|\s]+/) : [];
                             uploadBatch.push({
-                                id: "LOCAL-" + Math.floor(Math.random() * 1000000),
                                 name: cell[0].trim(), protocol: cell[1] ? cell[1].trim() : '',
                                 company: cell[2] ? cell[2].trim() : '', status: cell[3] && cell[3].includes("满") ? "已满额" : "招募中",
-                                startDate: cell[4] ? cell[4].trim() : new Date().toISOString().split('T')[0], regimen: cell[5] ? cell[5].trim() : '',
-                                tags: rawTags.filter(Boolean), description: "",
+                                start_date: cell[4] ? cell[4].trim() : new Date().toISOString().split('T')[0], regimen: cell[5] ? cell[5].trim() : '',
+                                tags: rawTags.filter(Boolean).join('|'), description: "",
                                 inclusion: cell[7] ? cell[7].trim() : "详见内容。", exclusion: cell[8] ? cell[8].trim() : "详见规范。"
                             });
                         }
                     });
-                    localTrials.value = [...localTrials.value, ...uploadBatch];
-                    localStorage.setItem('hz_local_trials', JSON.stringify(localTrials.value));
-                    textPasteInput.value = ''; showImportModal.value = false;
-                    alert("💡 纯文本解析完毕并已导入本地沙盒管理！");
+                    isLoading.value = true;
+                    const { error } = await globalSupabase.from('trials').insert(uploadBatch);
+                    if (error) {
+                        alert("【文本写入失败】" + error.message);
+                    } else {
+                        await fetchTrialsFromCloud();
+                        textPasteInput.value = ''; showImportModal.value = false;
+                        alert("🎉 纯文本试验记录已成功发布至公共云端！");
+                    }
+                    isLoading.value = false;
                 };
 
                 const handleImageSelect = (e) => { 
@@ -637,7 +622,7 @@
                 };
 
                 const parseImageOCR = async () => {
-                    if (!uploadedImageRaw.value) return;
+                    if (!uploadedImageRaw.value || !globalSupabase) return;
                     isLoading.value = true;
                     try {
                         const result = await Tesseract.recognize(
@@ -648,12 +633,12 @@
                         
                         const extractedText = result.data.text;
                         if (!extractedText || !extractedText.trim()) {
-                            alert("图片识别完毕，但未提取到清晰文字。");
+                            alert("图片识别完毕，但未从图片中提取到清晰有效的文字。");
                             return;
                         }
 
                         let lines = extractedText.split('\n').map(l => l.trim()).filter(Boolean);
-                        let detectedName = lines[0] ? lines[0].substring(0, 80) : "图片导入试验_" + new Date().toLocaleDateString();
+                        let detectedName = lines[0] ? lines[0].substring(0, 80) : "图片扫描项目_" + new Date().toLocaleDateString();
                         for (let line of lines) {
                             if (line.includes("研究") || line.includes("试验") || line.includes("评价") || line.includes("临床")) {
                                 detectedName = line;
@@ -662,24 +647,26 @@
                         }
 
                         const ocrPayload = {
-                            id: "LOCAL-" + Math.floor(Math.random() * 1000000),
                             name: detectedName,
                             protocol: "OCR-" + Math.floor(1000 + Math.random() * 9000), 
                             company: extractedText.includes("海和") ? "海和药物" : "未知药企(OCR)", 
                             status: "招募中", 
-                            startDate: new Date().toISOString().split('T')[0], 
+                            start_date: new Date().toISOString().split('T')[0], 
                             regimen: "待细化方案",
-                            tags: ["非小细胞肺癌", "待加工"], 
-                            description: "智能图片扫描生成。", 
+                            tags: "非小细胞肺癌|待加工", 
+                            description: "通过全能工作台智能扫描识别一键导入。", 
                             inclusion: extractedText, 
-                            exclusion: "请后续编辑补全排除指征。"
+                            exclusion: "请后续管理员点击【编辑】细化排除受试禁忌。"
                         };
 
-                        localTrials.value.push(ocrPayload);
-                        localStorage.setItem('hz_local_trials', JSON.stringify(localTrials.value));
-
-                        alert("🎉 图片文字扫描识别完毕，并已妥善保存！");
-                        cameraImageName.value = ''; uploadedImageRaw.value = null; showImportModal.value = false;
+                        const { error } = await globalSupabase.from('trials').insert([ocrPayload]);
+                        if (error) {
+                            alert("【图片扫描完成，但上传受阻】" + error.message);
+                        } else {
+                            await fetchTrialsFromCloud();
+                            alert("🎉 恭喜！图片文字 OCR 识别完毕，已成功对齐实时更新上云！");
+                            cameraImageName.value = ''; uploadedImageRaw.value = null; showImportModal.value = false;
+                        }
 
                     } catch (err) {
                         console.error(err);
@@ -694,24 +681,18 @@
                 };
 
                 const deleteSelectedTrials = async () => {
-                    if (selectedTrialIds.value.length === 0) return;
-                    if (confirm(`确定要抹除这 ${selectedTrialIds.value.length} 项选中的研究项目吗？`)) {
+                    if (selectedTrialIds.value.length === 0 || !globalSupabase) return;
+                    if (confirm(`确定要从公共云端永久抹除这 ${selectedTrialIds.value.length} 项选中的在研项目吗？`)) {
                         isLoading.value = true;
-                        
-                        const cloudIds = selectedTrialIds.value.filter(id => !String(id).startsWith("LOCAL-"));
-                        const localIds = selectedTrialIds.value.filter(id => String(id).startsWith("LOCAL-"));
-
-                        if (cloudIds.length > 0 && globalSupabase) {
-                            await globalSupabase.from('trials').delete().in('id', cloudIds);
+                        const { error } = await globalSupabase.from('trials').delete().in('id', selectedTrialIds.value);
+                        if (error) {
+                            alert("【批量删除失败】" + error.message);
+                        } else {
+                            selectedTrialIds.value = [];
+                            await fetchTrialsFromCloud();
+                            alert("批量公共云端删除成功！");
                         }
-                        if (localIds.length > 0) {
-                            localTrials.value = localTrials.value.filter(t => !localIds.includes(t.id));
-                            localStorage.setItem('hz_local_trials', JSON.stringify(localTrials.value));
-                        }
-
-                        selectedTrialIds.value = [];
-                        await fetchTrialsFromCloud();
-                        alert("批量清理成功！");
+                        isLoading.value = false;
                     }
                 };
 
@@ -725,7 +706,7 @@
                     const worksheet = XLSX.utils.aoa_to_sheet(matrixHeaders.concat(matrixRows));
                     const workbook = XLSX.utils.book_new();
                     XLSX.utils.book_append_sheet(workbook, worksheet, "全量 clinical 试验汇总");
-                    XLSX.writeFile(workbook, `哈肿呼吸科胸部肿瘤_最新全量数据大表.xlsx`);
+                    XLSX.writeFile(workbook, `哈肿呼吸科胸部肿瘤_云端同步全量汇总大表.xlsx`);
                 };
 
                 const clearUploadStates = () => { uploadedFileName.value = ''; uploadedFileRaw.value = null; showImportModal.value = false; };
@@ -793,13 +774,15 @@
                     showManageModal.value = true;
                 };
 
-                // 核心重构：彻底静默过滤云端 RLS 权限错误，100% 自动降级安全保护
                 const saveTrial = async () => {
                     if (!manageForm.value.name || !manageForm.value.name.trim()) {
                         return alert("课题研究官方全称不能为空，请检查输入！");
                     }
+                    if (!globalSupabase) {
+                        return alert("未成功连通云端数据库，请核对。");
+                    }
                     
-                    const parsedTags = manageForm.value.tagsString.split(/[\s|，,]+/).filter(Boolean);
+                    const parsedTags = manageForm.value.tagsString.split(/[\s|，,]+/).filter(Boolean).join('|');
                     isLoading.value = true;
                     
                     let formattedDate = manageForm.value.startDate;
@@ -814,7 +797,7 @@
                         protocol: manageForm.value.protocol ? manageForm.value.protocol.trim() : '',
                         company: manageForm.value.company ? manageForm.value.company.trim() : '',
                         status: manageForm.value.status,
-                        startDate: formattedDate,
+                        start_date: formattedDate,
                         regimen: manageForm.value.regimen ? manageForm.value.regimen.trim() : '',
                         tags: parsedTags,
                         description: manageForm.value.description ? manageForm.value.description.trim() : '',
@@ -822,49 +805,42 @@
                         exclusion: manageForm.value.exclusion ? manageForm.value.exclusion.trim() : '未录入具体排除标准。'
                     };
 
-                    // 如果是修改已有的本地离线项目
-                    if (isEditMode.value && String(currentEditId.value).startsWith("LOCAL-")) {
-                        localTrials.value = localTrials.value.map(t => {
-                            if (t.id === currentEditId.value) {
-                                return { id: t.id, ...payload };
-                            }
-                            return t;
-                        });
-                        localStorage.setItem('hz_local_trials', JSON.stringify(localTrials.value));
-                        showManageModal.value = false;
-                        await fetchTrialsFromCloud();
-                        return;
-                    }
+                    try {
+                        let error = null;
+                        if (isEditMode.value) {
+                            const res = await globalSupabase.from('trials').update(payload).eq('id', currentEditId.value);
+                            error = res.error;
+                        } else {
+                            const res = await globalSupabase.from('trials').insert([payload]);
+                            error = res.error;
+                        }
 
-                    // 默认安全存入离线沙盒，杜绝触发阻断弹窗
-                    if (!isEditMode.value) {
-                        payload.id = "LOCAL-" + Math.floor(Math.random() * 1000000);
-                        localTrials.value.push(payload);
-                    } else {
-                        localTrials.value = localTrials.value.map(t => {
-                            if (t.id === currentEditId.value) {
-                                return { id: t.id, ...payload };
-                            }
-                            return t;
-                        });
+                        if (error) {
+                            alert("【数据无法写入公共云端】\n错误详情：" + error.message);
+                        } else {
+                            alert("🎉 恭喜！数据已成功发布至公共云端，全网可查阅更新！");
+                            showManageModal.value = false;
+                        }
+                        await fetchTrialsFromCloud();
+                    } catch (err) {
+                        console.error(err);
+                        alert("发布时捕获到未知异常。");
+                    } finally {
+                        isLoading.value = false;
                     }
-                    localStorage.setItem('hz_local_trials', JSON.stringify(localTrials.value));
-                    
-                    showManageModal.value = false;
-                    await fetchTrialsFromCloud();
                 };
 
                 const deleteTrial = async (id) => {
-                    if (confirm("确定要永久移除此项目吗？")) {
+                    if (confirm("确定要永久从公共云端移除此在研项目吗？") && globalSupabase) {
                         isLoading.value = true;
-                        if (String(id).startsWith("LOCAL-")) {
-                            localTrials.value = localTrials.value.filter(item => item.id !== id);
-                            localStorage.setItem('hz_local_trials', JSON.stringify(localTrials.value));
-                        } else if (globalSupabase) {
-                            await globalSupabase.from('trials').delete().eq('id', id);
+                        const { error } = await globalSupabase.from('trials').delete().eq('id', id);
+                        if (error) {
+                            alert("【云端清理失败】" + error.message);
+                        } else {
+                            selectedTrialIds.value = selectedTrialIds.value.filter(item => item !== id);
+                            await fetchTrialsFromCloud();
                         }
-                        selectedTrialIds.value = selectedTrialIds.value.filter(item => item !== id);
-                        await fetchTrialsFromCloud();
+                        isLoading.value = false;
                     }
                 };
 
