@@ -36,7 +36,6 @@
                 </div>
                 <div>
                     <h1 class="text-base md:text-lg font-bold tracking-wide leading-none mb-1">哈肿呼吸科胸部肿瘤</h1>
-                    <!-- 已成功将 management 修改为 管理平台 -->
                     <p class="text-[10px] text-slate-400 font-medium tracking-wider uppercase">临床实验助手智能管理平台</p>
                 </div>
             </div>
@@ -362,7 +361,7 @@
                         <input type="text" v-model="manageForm.protocol" class="w-full p-2 border border-slate-300 rounded-lg" placeholder="若无可不填">
                     </div>
                     <div>
-                        <label class="block font-bold text-slate-600 mb-1">申办 company</label>
+                        <label class="block font-bold text-slate-600 mb-1">申办公司</label>
                         <input type="text" v-model="manageForm.company" class="w-full p-2 border border-slate-300 rounded-lg">
                     </div>
                     <div>
@@ -433,7 +432,8 @@
     <script>
         const { createApp, ref, computed, watch, onMounted } = Vue;
 
-        const SUPABASE_URL = "https://tqdmcdcvknygwkpemll.supabase.co";
+        // 核心修复：更正 Supabase 云端实例项目域名拼写错位
+        const SUPABASE_URL = "https://tqdmcdcvknqygwkpemll.supabase.co";
         const SUPABASE_KEY = "sb_publishable_td6jG96VyiWhzilHVzjGng_9fQIc6vs";
         
         let globalSupabase = null;
