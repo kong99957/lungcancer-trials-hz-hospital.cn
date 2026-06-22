@@ -5,16 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>哈肿呼吸科胸部肿瘤 临床实验助手</title>
     
-    <!-- 引入 Vue 3 (国内稳定加速源) -->
+    <!-- 引入 Vue 3 (国内加速源) -->
     <script src="https://registry.npmmirror.com/vue/3.3.4/files/dist/vue.global.js"></script>
-    
-    <!-- 引入官方 Supabase 客户端库 (国内稳定加速源) -->
+    <!-- 引入官方 Supabase 客户端库 (国内加速源) -->
     <script src="https://registry.npmmirror.com/@supabase/supabase-js/2.39.0/files/dist/umd/supabase.js"></script>
-    
-    <!-- 引入工业级万能表格解析与导出双向引擎 SheetJS (国内稳定加速源) -->
+    <!-- 引入大表引擎 SheetJS (国内加速源) -->
     <script src="https://registry.npmmirror.com/xlsx/0.18.5/files/dist/xlsx.full.min.js"></script>
-    
-    <!-- 引入 Tailwind CSS (保持高速流式渲染) -->
+    <!-- 引入 Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- 引入 FontAwesome 图标库 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -48,7 +45,6 @@
                 </div>
             </div>
             
-            <!-- 管理员授权验证 -->
             <div>
                 <button v-if="!isAdmin" @click="showLoginModal = true" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 px-3.5 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 shadow-sm">
                     <i class="fa-solid fa-lock"></i> 进入管理模式
@@ -65,7 +61,7 @@
         <!-- 主体布局 -->
         <main class="flex-1 p-4 md:p-6 grid grid-cols-1 lg:grid-cols-4 gap-6">
             
-            <!-- 左侧受试者特征筛选栏 -->
+            <!-- 左侧筛选栏 -->
             <section class="lg:col-span-1 bg-slate-100/80 p-4 rounded-2xl border border-slate-200/60 space-y-4 h-fit sticky top-24">
                 <div class="flex justify-between items-center border-b pb-3 border-slate-300/60">
                     <h3 class="font-bold text-slate-700 flex items-center gap-1.5 text-xs tracking-wide">
@@ -144,7 +140,7 @@
             <!-- 右侧主展示布局 -->
             <section class="lg:col-span-3 flex flex-col space-y-4">
                 
-                <!-- 错误或乱码一键回滚撤销条 -->
+                <!-- 错误撤销条 -->
                 <div v-if="lastImportedIds.length > 0 && isAdmin" class="bg-amber-50 border-2 border-amber-300 rounded-xl p-3 flex justify-between items-center shadow-sm">
                     <div class="flex items-center space-x-2 text-xs text-amber-800">
                         <i class="fa-solid fa-triangle-exclamation text-amber-600 text-sm animate-pulse"></i>
@@ -177,7 +173,7 @@
                     </div>
                 </div>
 
-                <!-- 临床云助手核心操作工作台 (管理端专属) -->
+                <!-- 核心操作工作台 -->
                 <div v-if="isAdmin" class="bg-slate-100 p-3 rounded-xl border border-slate-200 flex flex-wrap items-center justify-between gap-3 shadow-inner">
                     <div class="flex items-center space-x-2">
                         <button @click="toggleSelectAllOnPage" class="text-[11px] bg-white hover:bg-slate-50 text-slate-700 border px-2.5 py-1.5 rounded-lg transition font-medium">
@@ -209,7 +205,7 @@
 
                 <!-- 试验大表卡片数据流 -->
                 <div class="space-y-5 relative">
-                    <!-- 云端数据连接加载动画遮罩 -->
+                    <!-- 云端连接动画遮罩 -->
                     <div v-if="isLoading" class="absolute inset-0 bg-white/70 backdrop-blur-xs flex items-center justify-center py-20 z-20 rounded-2xl">
                         <div class="text-center text-xs text-blue-600 font-bold flex flex-col items-center gap-2">
                             <i class="fa-solid fa-circle-notch animate-spin text-3xl text-blue-500"></i>
@@ -223,12 +219,8 @@
                     </div>
 
                     <div v-for="trial in paginatedTrials" :key="trial.id" :class="{'border-blue-300 bg-blue-50/10': selectedTrialIds.includes(trial.id)}" class="border border-slate-100 rounded-2xl p-5 bg-white shadow-[0_4px_20px_-2px_rgba(148,163,184,0.12)] hover:shadow-[0_8px_25px_-2px_rgba(148,163,184,0.2)] hover:border-slate-200 transition-all duration-300 relative flex flex-col justify-between">
-                        
-                        <span v-if="checkIsRecentNew(trial.startDate)" class="absolute -top-2.5 -left-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white text-[9px] font-extrabold px-2.5 py-0.5 rounded-br-lg rounded-tl-lg shadow-sm tracking-wide">
-                            NEW
-                        </span>
+                        <span v-if="checkIsRecentNew(trial.startDate)" class="absolute -top-2.5 -left-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white text-[9px] font-extrabold px-2.5 py-0.5 rounded-br-lg rounded-tl-lg shadow-sm tracking-wide">NEW</span>
 
-                        <!-- 复选勾选框 -->
                         <div v-if="isAdmin" class="absolute top-4 left-4 z-10">
                             <input type="checkbox" :value="trial.id" v-model="selectedTrialIds" class="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer" />
                         </div>
@@ -236,9 +228,7 @@
                         <div :class="{'pl-6': isAdmin}">
                             <div class="flex justify-between items-start gap-4 mb-2.5">
                                 <h4 class="font-bold text-sm md:text-base text-slate-900 leading-snug pt-0.5">{{ trial.name }}</h4>
-                                <span :class="trial.status === '招募中' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'" class="text-[10px] px-2.5 py-0.5 rounded-md font-bold border shrink-0">
-                                    {{ trial.status }}
-                                </span>
+                                <span :class="trial.status === '招募中' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'" class="text-[10px] px-2.5 py-0.5 rounded-md font-bold border shrink-0">{{ trial.status }}</span>
                             </div>
 
                             <div class="text-[11px] text-slate-500 flex flex-wrap gap-x-4 gap-y-1 mb-3 border-b border-slate-100 pb-2.5">
@@ -253,13 +243,10 @@
                             </p>
 
                             <div class="flex flex-wrap gap-1 mb-1">
-                                <span v-for="tag in trial.tags" :key="tag" class="bg-blue-50 text-blue-700 border border-blue-100 text-[10px] px-2 py-0.5 rounded-md font-bold">
-                                    {{ tag }}
-                                </span>
+                                <span v-for="tag in trial.tags" :key="tag" class="bg-blue-50 text-blue-700 border border-blue-100 text-[10px] px-2 py-0.5 rounded-md font-bold">{{ tag }}</span>
                             </div>
                         </div>
 
-                        <!-- 卡片交互底栏 -->
                         <div class="flex justify-between items-center border-t border-slate-100 pt-3.5 mt-3.5" :class="{'pl-6': isAdmin}">
                             <button @click="viewDetails(trial)" class="group bg-blue-50/70 hover:bg-blue-100 border border-blue-100/50 text-blue-700 font-bold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition-all duration-200">
                                 <i class="fa-solid fa-file-medical text-blue-500 text-xs"></i>
@@ -268,12 +255,8 @@
                             </button>
                             
                             <div v-if="isAdmin" class="flex gap-1.5">
-                                <button @click="openEditModal(trial)" class="text-[11px] bg-slate-100 hover:bg-amber-500 text-slate-600 hover:text-white border border-slate-200 hover:border-amber-500 px-3 py-1.5 rounded-xl transition-all font-medium">
-                                    <i class="fa-solid fa-edit mr-0.5"></i> 编辑
-                                </button>
-                                <button @click="deleteTrial(trial.id)" class="text-[11px] bg-slate-100 hover:bg-rose-600 text-slate-600 hover:text-white border border-slate-200 hover:border-rose-600 px-3 py-1.5 rounded-xl transition-all font-medium">
-                                    <i class="fa-solid fa-trash mr-0.5"></i> 删除
-                                </button>
+                                <button @click="openEditModal(trial)" class="text-[11px] bg-slate-100 hover:bg-amber-500 text-slate-600 hover:text-white border border-slate-200 hover:border-amber-500 px-3 py-1.5 rounded-xl transition-all font-medium"><i class="fa-solid fa-edit mr-0.5"></i> 编辑</button>
+                                <button @click="deleteTrial(trial.id)" class="text-[11px] bg-slate-100 hover:bg-rose-600 text-slate-600 hover:text-white border border-slate-200 hover:border-rose-600 px-3 py-1.5 rounded-xl transition-all font-medium"><i class="fa-solid fa-trash mr-0.5"></i> 删除</button>
                             </div>
                         </div>
                     </div>
@@ -292,9 +275,7 @@
         <div v-if="showImportModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
             <div class="bg-white rounded-2xl shadow-2xl w-full max-w-xl p-6 border border-slate-200">
                 <div class="flex justify-between items-center border-b pb-3 mb-4">
-                    <h3 class="text-sm font-bold text-slate-900 flex items-center gap-1.5">
-                        <i class="fa-solid fa-arrow-up-from-bracket text-blue-600"></i> 全能兼容数据批量合入工作台
-                    </h3>
+                    <h3 class="text-sm font-bold text-slate-900 flex items-center gap-1.5"><i class="fa-solid fa-arrow-up-from-bracket text-blue-600"></i> 全能兼容数据批量合入工作台</h3>
                     <button @click="showImportModal = false" class="text-slate-400 text-xl font-bold hover:text-slate-600">&times;</button>
                 </div>
 
@@ -313,13 +294,9 @@
                     </button>
                 </div>
 
-                <!-- 电子表格流解析文件加载区 -->
+                <!-- 电子表格解析区 -->
                 <div v-if="importType === 'excel'" class="space-y-4">
-                    <div 
-                        @dragover.prevent="isDragOver = true" @dragleave="isDragOver = false" @drop.prevent="handleFileDrop"
-                        :class="{'drag-over': isDragOver}"
-                        class="border-2 border-dashed border-slate-300 hover:border-blue-500 rounded-xl p-8 text-center cursor-pointer transition relative bg-slate-50"
-                    >
+                    <div @dragover.prevent="isDragOver = true" @dragleave="isDragOver = false" @drop.prevent="handleFileDrop" :class="{'drag-over': isDragOver}" class="border-2 border-dashed border-slate-300 hover:border-blue-500 rounded-xl p-8 text-center cursor-pointer transition relative bg-slate-50">
                         <input type="file" accept=".xlsx,.xls,.xlsm,.xlsb,.csv,.txt" @change="handleFileSelect" class="absolute inset-0 opacity-0 cursor-pointer" />
                         <div v-if="!uploadedFileRaw" class="space-y-2 text-slate-500">
                             <i class="fa-solid fa-screwdriver-wrench text-4xl text-blue-400"></i>
@@ -330,20 +307,16 @@
                             <span>全量表已成功加载挂载: {{ uploadedFileName }}</span>
                         </div>
                     </div>
-                    <button @click="parseUploadedFile" :disabled="!uploadedFileRaw" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl text-xs shadow transition disabled:opacity-40">
-                        <i class="fa-solid fa-shield-halved"></i> 启动全能引擎对齐并永久同步至云端
-                    </button>
+                    <button @click="parseUploadedFile" :disabled="!uploadedFileRaw" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl text-xs shadow transition disabled:opacity-40"><i class="fa-solid fa-shield-halved"></i> 启动全能引擎对齐并永久同步至云端</button>
                 </div>
 
                 <!-- 纯文本复制 -->
                 <div v-if="importType === 'text'" class="space-y-3">
                     <textarea v-model="textPasteInput" rows="5" class="w-full p-2.5 border border-slate-300 rounded-xl text-xs font-mono outline-none focus:border-blue-500" placeholder="课题全称, 项目编号, 药企公司, 招募状态, 入组时间, 用药方案, 核心特点标签, 入选表现, 排除表现"></textarea>
-                    <button @click="parseTextPaste" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-lg text-xs shadow">
-                        解析并即时上传至云数据库
-                    </button>
+                    <button @click="parseTextPaste" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-lg text-xs shadow">解析并即时上传至云数据库</button>
                 </div>
 
-                <!-- 图片加载区 -->
+                <!-- 图片识别 -->
                 <div v-if="importType === 'image'" class="space-y-4">
                     <div class="border-2 border-dashed border-slate-300 hover:border-emerald-500 rounded-xl p-8 text-center cursor-pointer transition bg-slate-50 relative">
                         <input type="file" accept="image/*" @change="handleImageSelect" class="absolute inset-0 opacity-0 cursor-pointer" />
@@ -353,9 +326,7 @@
                             <span v-if="cameraImageName" class="text-[11px] text-emerald-600 font-medium">(当前选中: {{ cameraImageName }})</span>
                         </div>
                     </div>
-                    <button @click="parseImageOCR" :disabled="!cameraImageName" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs shadow disabled:opacity-40">
-                        识别提取并实时入库
-                    </button>
+                    <button @click="parseImageOCR" :disabled="!cameraImageName" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs shadow disabled:opacity-40">识别提取并实时入库</button>
                 </div>
             </div>
         </div>
@@ -365,9 +336,7 @@
             <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col">
                 <div class="p-4 border-b bg-slate-50 flex justify-between items-start rounded-t-2xl">
                     <div>
-                        <span :class="selectedTrial.status === '招募中' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-amber-100 text-amber-800 border-amber-200'" class="text-[10px] font-bold px-2 py-0.5 rounded mr-2 border">
-                            {{ selectedTrial.status }}
-                        </span>
+                        <span :class="selectedTrial.status === '招募中' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-amber-100 text-amber-800 border-amber-200'" class="text-[10px] font-bold px-2 py-0.5 rounded mr-2 border">{{ selectedTrial.status }}</span>
                         <h3 class="text-base font-bold text-slate-900 inline-block mt-1">{{ selectedTrial.name }}</h3>
                     </div>
                     <button @click="selectedTrial = null" class="text-slate-400 hover:text-slate-600 text-2xl font-bold p-1">&times;</button>
@@ -381,15 +350,11 @@
                         <p><strong>用药方案：</strong>{{ selectedTrial.regimen || '--' }}</p>
                     </div>
                     <div class="bg-emerald-50 border border-emerald-200 p-4 rounded-xl">
-                        <h4 class="font-bold text-emerald-900 flex items-center gap-1.5 mb-2 text-xs uppercase tracking-wider">
-                            <i class="fa-solid fa-square-check text-emerald-600 text-sm"></i> 入选标准 (Inclusion Criteria)
-                        </h4>
+                        <h4 class="font-bold text-emerald-900 flex items-center gap-1.5 mb-2 text-xs uppercase tracking-wider"><i class="fa-solid fa-square-check text-emerald-600 text-sm"></i> 入选标准 (Inclusion Criteria)</h4>
                         <p class="whitespace-pre-line text-emerald-950 leading-relaxed text-xs font-medium">{{ selectedTrial.inclusion }}</p>
                     </div>
                     <div class="bg-rose-50 border border-rose-200 p-4 rounded-xl">
-                        <h4 class="font-bold text-rose-900 flex items-center gap-1.5 mb-2 text-xs uppercase tracking-wider">
-                            <i class="fa-solid fa-triangle-exclamation text-rose-600 text-sm"></i> 排除标准 (Exclusion Criteria)
-                        </h4>
+                        <h4 class="font-bold text-rose-900 flex items-center gap-1.5 mb-2 text-xs uppercase tracking-wider"><i class="fa-solid fa-triangle-exclamation text-rose-600 text-sm"></i> 排除标准 (Exclusion Criteria)</h4>
                         <p class="whitespace-pre-line text-rose-950 leading-relaxed text-xs font-medium">{{ selectedTrial.exclusion }}</p>
                     </div>
                 </div>
@@ -489,11 +454,18 @@
     <script>
         const { createApp, ref, computed, watch, onMounted } = Vue;
 
-        // 🌟 核心硬编码修复：熔焊你的公网 Supabase 密钥与专属天线
         const SUPABASE_URL = "https://tqdmcdcvknqygwkpemll.supabase.co";
         const SUPABASE_KEY = "sb_publishable_td6jG96VyiWhzilHVzjGng_9fQIc6vs";
-        // 修正：使用官方正确的客户端实例化全局句柄
-        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        
+        // 🔒 高级容错封装：保证即便网络通讯异常，前端整个 Vue 3 引擎也绝对不挂、不卡死
+        let supabaseClient = null;
+        try {
+            if (typeof supabase !== 'undefined' && supabase.createClient) {
+                supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+            }
+        } catch (e) {
+            console.error("Supabase 初始化异常:", e);
+        }
 
         createApp({
             setup() {
@@ -520,7 +492,6 @@
                 const loginForm = ref({ username: '', password: '' });
                 const loginError = ref('');
 
-                // 核心持久化数据底座
                 const mockTrials = ref([]);
                 const currentPage = ref(1);
                 const itemsPerPage = 5;
@@ -534,15 +505,18 @@
                     regimen: '', tagsString: '', description: '', inclusion: '', exclusion: ''
                 });
 
-                // 【云端数据拉取引擎】
+                // 【物理对齐拉取核心，完美拼写修复】
                 const fetchTrialsFromCloud = async () => {
+                    if (!supabaseClient) {
+                        isLoading.value = false;
+                        return;
+                    }
                     isLoading.value = true;
                     try {
                         const { data, error } = await supabaseClient.from('trials').select('*');
                         if (error) {
-                            console.log("正在为您全自动初始化云端数据表结构...");
                             mockTrials.value = [];
-                        } else {
+                        } else if (data) {
                             mockTrials.value = data.map(item => ({
                                 id: item.id,
                                 name: item.name || '',
@@ -559,7 +533,7 @@
                         }
                     } catch (err) {
                         console.error(err);
-                    } finaly {
+                    } finally {
                         isLoading.value = false;
                     }
                 };
@@ -589,7 +563,7 @@
                 const handleFileSelect = (e) => { prepareFile(e.target.files[0]); };
 
                 const parseUploadedFile = () => {
-                    if (!uploadedFileRaw.value) return;
+                    if (!uploadedFileRaw.value || !supabaseClient) return;
                     const file = uploadedFileRaw.value;
                     const reader = new FileReader();
 
@@ -634,7 +608,7 @@
                             clearUploadStates();
                         } catch (err) {
                             console.error(err);
-                            alert("网络通讯异常，请确认云端项目已就绪。");
+                            alert("通讯异常，请确认云端项目建表无误。");
                         } finally {
                             isLoading.value = false;
                         }
@@ -643,7 +617,7 @@
                 };
 
                 const parseTextPaste = async () => {
-                    if (!textPasteInput.value.trim()) return;
+                    if (!textPasteInput.value.trim() || !supabaseClient) return;
                     const lines = textPasteInput.value.split('\n');
                     let uploadBatch = [];
                     lines.forEach(line => {
@@ -669,7 +643,7 @@
 
                 const handleImageSelect = (e) => { const file = e.target.files[0]; if (file) cameraImageName.value = file.name; };
                 const parseImageOCR = async () => {
-                    if (!cameraImageName.value) return;
+                    if (!cameraImageName.value || !supabaseClient) return;
                     const baseId = Math.floor(Math.random() * 100000000);
                     isLoading.value = true;
                     await supabaseClient.from('trials').insert([{
@@ -685,7 +659,7 @@
                 };
 
                 const undoLastImport = async () => {
-                    if (lastImportedIds.value.length === 0) return;
+                    if (lastImportedIds.value.length === 0 || !supabaseClient) return;
                     if (confirm(`确定要撤销并从云端彻底删除刚才上传的全部 ${lastImportedIds.value.length} 项研究项目吗？`)) {
                         isLoading.value = true;
                         await supabaseClient.from('trials').delete().in('id', lastImportedIds.value);
@@ -697,7 +671,7 @@
                 };
 
                 const deleteSelectedTrials = async () => {
-                    if (selectedTrialIds.value.length === 0) return;
+                    if (selectedTrialIds.value.length === 0 || !supabaseClient) return;
                     if (confirm(`确定要从云数据库中永久抹除这 ${selectedTrialIds.value.length} 项前沿项目吗？（全网同步清空）`)) {
                         isLoading.value = true;
                         await supabaseClient.from('trials').delete().in('id', selectedTrialIds.value);
@@ -716,7 +690,7 @@
                     ]);
                     const worksheet = XLSX.utils.aoa_to_sheet(matrixHeaders.concat(matrixRows));
                     const workbook = XLSX.utils.book_new();
-                    XLSX.utils.book_append_sheet(workbook, worksheet, "全量临床试验汇总");
+                    XLSX.utils.book_append_sheet(workbook, worksheet, "全量 clinical 试验汇总");
                     XLSX.writeFile(workbook, `哈肿呼吸科胸部肿瘤_最新云端全量数据大表.xlsx`);
                 };
 
@@ -786,7 +760,7 @@
                 };
 
                 const saveTrial = async () => {
-                    if (!manageForm.value.name) return alert("课题名称不能为空");
+                    if (!manageForm.value.name || !supabaseClient) return alert("课题名称不能为空");
                     const parsedTags = manageForm.value.tagsString.split(/[\s|，,]+/).filter(Boolean).join('|');
                     
                     isLoading.value = true;
@@ -814,7 +788,7 @@
                 };
 
                 const deleteTrial = async (id) => {
-                    if (confirm("确定要永久从云端移除此项目吗？")) {
+                    if (confirm("确定要永久从云端移除此项目吗？") && supabaseClient) {
                         isLoading.value = true;
                         await supabaseClient.from('trials').delete().eq('id', id);
                         selectedTrialIds.value = selectedTrialIds.value.filter(item => item !== id);
